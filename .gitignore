@@ -1,1 +1,7 @@
-/mobile-sdk/
+# Restrict this repository to the mobile app subtree.
+/*
+!/.gitignore
+!/mobile/
+/mobile/*
+!/mobile/rdo_offline_app/
+!/mobile/rdo_offline_app/**

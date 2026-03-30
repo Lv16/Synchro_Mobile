@@ -52,3 +52,11 @@ app.*.map.json
 .release.*.env
 .release*.bak*
 /dist/
+/ios_signing/
+/android/.gradle/
+/android/.kotlin/
+/android/key.properties
+/android/local.properties
+/android/upload-keystore.jks
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/flutter_export_environment.sh
