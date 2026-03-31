@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -16,6 +17,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../theme/app_theme.dart';
+import '../../../background/background_sync_notification_service.dart';
+import '../../../background/background_sync_service.dart';
 import '../../../background/background_sync_telemetry.dart';
 import '../application/app_update_gateway.dart';
 import '../application/supervisor_bootstrap_gateway.dart';
@@ -427,6 +430,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   static const Duration _autoSyncThrottle = Duration(seconds: 8);
 
   Timer? _autoSyncTimer;
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
   bool _autoSyncInFlight = false;
   bool _authRecoveryInProgress = false;
   DateTime? _lastAutoSyncAt;
@@ -456,12 +460,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   int _installedBuildNumber = 0;
   bool _showingUpdateDialog = false;
   String? _lastShownUpdateKey;
+  bool _hasNetworkConnectivity = true;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _controller = OfflineSyncController(widget.repository, widget.syncGateway);
+    unawaited(BackgroundSyncNotificationService.requestPermissionIfNeeded());
+    unawaited(_initializeConnectivityMonitor());
     if (_kHomologationMode) {
       unawaited(_loadHomologationEntries());
     }
@@ -471,6 +478,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   @override
   void dispose() {
     _autoSyncTimer?.cancel();
+    _connectivitySubscription?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _controller.dispose();
     super.dispose();
@@ -480,6 +488,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       unawaited(_triggerAutoSync(reason: 'resume'));
+      return;
+    }
+    if (state == AppLifecycleState.paused) {
+      unawaited(BackgroundSyncService.scheduleImmediateSync(reason: 'paused'));
     }
   }
 
@@ -509,11 +521,48 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         return 'Retorno ao app';
       case 'timer':
         return 'Auto (timer)';
+      case 'connectivity':
+        return 'Retorno da internet';
       case 'after_save':
         return 'Após salvar RDO';
       default:
         return reason.trim().isEmpty ? 'Automático' : reason.trim();
     }
+  }
+
+  Future<void> _initializeConnectivityMonitor() async {
+    final connectivity = Connectivity();
+    try {
+      final initialResults = await connectivity.checkConnectivity();
+      _hasNetworkConnectivity = _isConnectivityAvailable(initialResults);
+    } catch (_) {
+      _hasNetworkConnectivity = true;
+    }
+
+    _connectivitySubscription = connectivity.onConnectivityChanged.listen((
+      results,
+    ) {
+      final hasConnectivity = _isConnectivityAvailable(results);
+      final hadConnectivity = _hasNetworkConnectivity;
+      _hasNetworkConnectivity = hasConnectivity;
+      if (hasConnectivity && !hadConnectivity) {
+        unawaited(_handleConnectivityRestored());
+      }
+    });
+  }
+
+  bool _isConnectivityAvailable(List<ConnectivityResult> results) {
+    for (final result in results) {
+      if (result != ConnectivityResult.none) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  Future<void> _handleConnectivityRestored() async {
+    await BackgroundSyncService.scheduleImmediateSync(reason: 'connectivity');
+    await _triggerAutoSync(reason: 'connectivity', force: true);
   }
 
   void _setSyncAttemptStatus({
@@ -1108,6 +1157,18 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         reason: reason,
         outcome: _buildSyncOutcomeFromController(),
       );
+      if (reason != 'manual' &&
+          _controller.lastRoundSuccessRdoCount > 0 &&
+          _controller.lastRoundSuccessCount > 0 &&
+          _controller.errorCount == 0 &&
+          _controller.queuedCount == 0) {
+        unawaited(
+          BackgroundSyncNotificationService.showSyncSuccess(
+            rdoCount: _controller.lastRoundSuccessRdoCount,
+            operationCount: _controller.lastRoundSuccessCount,
+          ),
+        );
+      }
       await _loadAssignedOs();
     } finally {
       _autoSyncInFlight = false;
@@ -4933,6 +4994,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           'RDO $nextRdo da OS ${assigned.osNumber} salvo offline$withTankLabel$withActivityLabel$withTeamLabel$withPhotoLabel.',
         ),
       ),
+    );
+    unawaited(
+      BackgroundSyncService.scheduleImmediateSync(reason: 'after_save'),
     );
     unawaited(_triggerAutoSync(reason: 'after_save'));
   }

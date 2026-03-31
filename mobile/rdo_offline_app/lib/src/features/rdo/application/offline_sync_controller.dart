@@ -18,10 +18,16 @@ class OfflineSyncController extends ChangeNotifier {
   List<PendingSyncItem> _items = const <PendingSyncItem>[];
   bool _busy = false;
   String? _message;
+  int _lastRoundSuccessCount = 0;
+  int _lastRoundFailureCount = 0;
+  int _lastRoundSuccessRdoCount = 0;
 
   List<PendingSyncItem> get items => _items;
   bool get busy => _busy;
   String? get message => _message;
+  int get lastRoundSuccessCount => _lastRoundSuccessCount;
+  int get lastRoundFailureCount => _lastRoundFailureCount;
+  int get lastRoundSuccessRdoCount => _lastRoundSuccessRdoCount;
 
   int get queuedCount => _items
       .where(
@@ -59,6 +65,9 @@ class OfflineSyncController extends ChangeNotifier {
     }
     _busy = true;
     _message = null;
+    _lastRoundSuccessCount = 0;
+    _lastRoundFailureCount = 0;
+    _lastRoundSuccessRdoCount = 0;
     notifyListeners();
 
     try {
@@ -92,6 +101,9 @@ class OfflineSyncController extends ChangeNotifier {
       }
 
       final summary = await _summarizeRound(pendingQueue);
+      _lastRoundSuccessCount = summary.success;
+      _lastRoundFailureCount = summary.failed;
+      _lastRoundSuccessRdoCount = summary.successfulRdoCount;
       if (summary.failed == 0) {
         final label = summary.success == 1 ? 'item' : 'itens';
         final verb = summary.success == 1 ? 'sincronizado' : 'sincronizados';
@@ -337,15 +349,23 @@ class OfflineSyncController extends ChangeNotifier {
 
     var success = 0;
     var failed = 0;
+    final successfulRdos = <String>{};
     for (final attempted in attemptedItems) {
       final state = stateByUuid[attempted.clientUuid];
       if (state == SyncState.synced) {
         success += 1;
+        successfulRdos.add(
+          '${attempted.osNumber.trim()}#${attempted.rdoSequence}',
+        );
       } else {
         failed += 1;
       }
     }
-    return _SyncRoundSummary(success: success, failed: failed);
+    return _SyncRoundSummary(
+      success: success,
+      failed: failed,
+      successfulRdoCount: successfulRdos.length,
+    );
   }
 
   Future<void> _markSyncingItemsAsError(String reason) async {
@@ -369,8 +389,13 @@ class OfflineSyncController extends ChangeNotifier {
 }
 
 class _SyncRoundSummary {
-  const _SyncRoundSummary({required this.success, required this.failed});
+  const _SyncRoundSummary({
+    required this.success,
+    required this.failed,
+    required this.successfulRdoCount,
+  });
 
   final int success;
   final int failed;
+  final int successfulRdoCount;
 }

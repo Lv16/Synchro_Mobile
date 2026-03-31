@@ -62,8 +62,11 @@ class SharedPrefsOfflineRdoRepository implements OfflineRdoRepository {
 
   @override
   Future<void> clearSyncedItems() async {
-    // Keep synced items on device so the app can export historical RDOs offline.
-    return;
+    final items = await _readAll();
+    final filtered = items
+        .where((item) => item.state != SyncState.synced)
+        .toList(growable: false);
+    await _writeAll(filtered);
   }
 
   @override

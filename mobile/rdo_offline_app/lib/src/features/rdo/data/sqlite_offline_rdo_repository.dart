@@ -121,8 +121,12 @@ class SqliteOfflineRdoRepository implements OfflineRdoRepository {
 
   @override
   Future<void> clearSyncedItems() async {
-    // Keep synced items on device so the app can export historical RDOs offline.
-    return;
+    final db = await _db();
+    await db.delete(
+      _tableName,
+      where: 'state = ?',
+      whereArgs: <Object?>[SyncState.synced.name],
+    );
   }
 
   @override

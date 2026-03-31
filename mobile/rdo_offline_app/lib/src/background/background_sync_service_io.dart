@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:workmanager/workmanager.dart';
 
+import 'background_sync_notification_service.dart';
 import 'background_sync_telemetry.dart';
 import '../features/auth/data/shared_prefs_auth_session_store.dart';
 import '../features/rdo/application/offline_sync_controller.dart';
@@ -10,21 +11,27 @@ import '../features/rdo/data/sqlite_offline_rdo_repository.dart';
 @pragma('vm:entry-point')
 void rdoBackgroundSyncDispatcher() {
   Workmanager().executeTask((taskName, inputData) async {
-    if (taskName != BackgroundSyncService.taskName) {
+    if (taskName != BackgroundSyncService.taskName &&
+        taskName != BackgroundSyncService.oneOffTaskName) {
       return true;
     }
 
+    final source = (inputData?['source'] as String?)?.trim().isNotEmpty == true
+        ? (inputData!['source'] as String).trim()
+        : 'android_background';
+
     await BackgroundSyncTelemetry.save(
-      source: 'android_background_periodic',
+      source: source,
       status: 'running',
       outcome: 'Sincronização automática iniciada.',
     );
 
     try {
-      return await _BackgroundSyncRunner().run();
+      await BackgroundSyncNotificationService.initialize();
+      return await _BackgroundSyncRunner(source: source).run();
     } catch (err) {
       await BackgroundSyncTelemetry.save(
-        source: 'android_background_periodic',
+        source: source,
         status: 'error',
         outcome: 'Falha inesperada no worker: $err',
       );
@@ -35,10 +42,13 @@ void rdoBackgroundSyncDispatcher() {
 
 class BackgroundSyncService {
   static const String taskName = 'rdo_background_sync_task';
+  static const String oneOffTaskName = 'rdo_background_sync_oneoff_task';
   static const String _uniqueName = 'rdo_background_sync_periodic';
+  static const String _oneOffUniqueName = 'rdo_background_sync_oneoff';
   static const Duration _frequency = Duration(minutes: 15);
   static const Duration _initialDelay = Duration(minutes: 1);
   static const Duration _backoffDelay = Duration(minutes: 5);
+  static const Duration _oneOffInitialDelay = Duration(seconds: 10);
 
   static bool _initialized = false;
 
@@ -70,9 +80,33 @@ class BackgroundSyncService {
 
     _initialized = true;
   }
+
+  static Future<void> scheduleImmediateSync({String reason = 'manual'}) async {
+    if (defaultTargetPlatform != TargetPlatform.android) {
+      return;
+    }
+
+    await initialize();
+
+    final normalizedReason = reason.trim().isEmpty ? 'manual' : reason.trim();
+    await Workmanager().registerOneOffTask(
+      _oneOffUniqueName,
+      oneOffTaskName,
+      initialDelay: _oneOffInitialDelay,
+      existingWorkPolicy: ExistingWorkPolicy.replace,
+      constraints: Constraints(networkType: NetworkType.connected),
+      backoffPolicy: BackoffPolicy.exponential,
+      backoffPolicyDelay: _backoffDelay,
+      inputData: <String, dynamic>{
+        'source': 'android_background_$normalizedReason',
+      },
+    );
+  }
 }
 
 class _BackgroundSyncRunner {
+  _BackgroundSyncRunner({required String source}) : _source = source;
+
   static const String _syncUrlEnv = String.fromEnvironment(
     'RDO_SYNC_URL',
     defaultValue: '',
@@ -90,11 +124,13 @@ class _BackgroundSyncRunner {
     defaultValue: '',
   );
 
+  final String _source;
+
   Future<bool> run() async {
     final syncUrl = _resolveSyncUrl();
     if (syncUrl == null) {
       await BackgroundSyncTelemetry.save(
-        source: 'android_background_periodic',
+        source: _source,
         status: 'skipped',
         outcome: 'RDO_SYNC_URL não configurada no build.',
       );
@@ -114,7 +150,7 @@ class _BackgroundSyncRunner {
     }
     if (staticToken.isEmpty && !hasValidSession) {
       await BackgroundSyncTelemetry.save(
-        source: 'android_background_periodic',
+        source: _source,
         status: 'skipped',
         outcome: 'Sem sessão válida para sincronizar em segundo plano.',
       );
@@ -147,7 +183,7 @@ class _BackgroundSyncRunner {
     await controller.loadQueue();
     if (controller.queuedCount <= 0) {
       await BackgroundSyncTelemetry.save(
-        source: 'android_background_periodic',
+        source: _source,
         status: 'success',
         outcome: 'Sem itens pendentes para envio.',
         queuedCount: 0,
@@ -161,9 +197,11 @@ class _BackgroundSyncRunner {
 
     final queued = controller.queuedCount;
     final errors = controller.errorCount;
+    final successfulRdos = controller.lastRoundSuccessRdoCount;
+    final successfulOperations = controller.lastRoundSuccessCount;
     if (errors > 0) {
       await BackgroundSyncTelemetry.save(
-        source: 'android_background_periodic',
+        source: _source,
         status: 'error',
         outcome: controller.message ?? 'Sincronização em background com erro.',
         queuedCount: queued,
@@ -173,7 +211,7 @@ class _BackgroundSyncRunner {
     }
     if (queued > 0) {
       await BackgroundSyncTelemetry.save(
-        source: 'android_background_periodic',
+        source: _source,
         status: 'partial',
         outcome:
             controller.message ??
@@ -184,8 +222,15 @@ class _BackgroundSyncRunner {
       return true;
     }
 
+    if (successfulRdos > 0 && successfulOperations > 0) {
+      await BackgroundSyncNotificationService.showBackgroundSyncSuccess(
+        rdoCount: successfulRdos,
+        operationCount: successfulOperations,
+      );
+    }
+
     await BackgroundSyncTelemetry.save(
-      source: 'android_background_periodic',
+      source: _source,
       status: 'success',
       outcome: controller.message ?? 'Sincronização em background concluída.',
       queuedCount: 0,

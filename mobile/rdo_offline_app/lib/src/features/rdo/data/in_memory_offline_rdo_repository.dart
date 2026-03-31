@@ -34,8 +34,7 @@ class InMemoryOfflineRdoRepository implements OfflineRdoRepository {
 
   @override
   Future<void> clearSyncedItems() async {
-    // Keep synced items in memory so offline export logic matches persisted repos.
-    return;
+    _items.removeWhere((_, item) => item.state == SyncState.synced);
   }
 
   @override
