@@ -6457,9 +6457,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         builder: (modalContext) {
           return StatefulBuilder(
             builder: (modalContext, setModalState) {
-              final keyboardInset = MediaQuery.of(
-                modalContext,
-              ).viewInsets.bottom;
               final totalCompartimentos = resolveNumeroCompartimentos();
               final sortedSelectedCompartimentos =
                   selectedCompartimentos.toList(growable: false)..sort();
@@ -6903,7 +6900,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                     controller: modalScrollController,
                     keyboardDismissBehavior:
                         ScrollViewKeyboardDismissBehavior.onDrag,
-                    padding: EdgeInsets.only(bottom: keyboardInset + 18),
+                    padding: const EdgeInsets.only(bottom: 18),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
