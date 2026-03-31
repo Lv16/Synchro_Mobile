@@ -6452,10 +6452,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       return await showModalBottomSheet<_CreateRdoDraft>(
         context: context,
         isScrollControlled: true,
+        useSafeArea: true,
         backgroundColor: Colors.white,
         builder: (modalContext) {
           return StatefulBuilder(
             builder: (modalContext, setModalState) {
+              final keyboardInset = MediaQuery.of(
+                modalContext,
+              ).viewInsets.bottom;
               final totalCompartimentos = resolveNumeroCompartimentos();
               final sortedSelectedCompartimentos =
                   selectedCompartimentos.toList(growable: false)..sort();
@@ -6891,1572 +6895,75 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 }
               }
 
-              return Padding(
-                padding: EdgeInsets.fromLTRB(
-                  16,
-                  16,
-                  16,
-                  MediaQuery.of(modalContext).viewInsets.bottom + 18,
-                ),
-                child: SingleChildScrollView(
-                  controller: modalScrollController,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Text(
-                        'Iniciar RDO ${summary.nextRdo} • OS ${assigned.osNumber}',
-                        style: const TextStyle(
-                          color: _kInk,
-                          fontSize: 16.5,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        summary.operationLabel,
-                        style: const TextStyle(
-                          color: _kMutedInk,
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      GestureDetector(
-                        onTap: () async {
-                          final picked = await showDatePicker(
-                            context: modalContext,
-                            initialDate: businessDate,
-                            firstDate: DateTime(2020),
-                            lastDate: DateTime.now().add(
-                              const Duration(days: 365),
-                            ),
-                          );
-                          if (picked == null) {
-                            return;
-                          }
-                          setModalState(() {
-                            businessDate = picked;
-                          });
-                        },
-                        child: InputDecorator(
-                          decoration: const InputDecoration(
-                            labelText: 'Data do RDO',
-                            border: OutlineInputBorder(),
-                            suffixIcon: Icon(Icons.calendar_today_rounded),
-                          ),
-                          child: Text(
-                            _formatDate(businessDate),
-                            style: const TextStyle(
-                              color: _kInk,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                            ),
+              return FractionallySizedBox(
+                heightFactor: 0.94,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                  child: SingleChildScrollView(
+                    controller: modalScrollController,
+                    keyboardDismissBehavior:
+                        ScrollViewKeyboardDismissBehavior.onDrag,
+                    padding: EdgeInsets.only(bottom: keyboardInset + 18),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(
+                          'Iniciar RDO ${summary.nextRdo} • OS ${assigned.osNumber}',
+                          style: const TextStyle(
+                            color: _kInk,
+                            fontSize: 16.5,
+                            fontWeight: FontWeight.w800,
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 12),
-                      sectionTitle(
-                        'Turno e PT',
-                        subtitle:
-                            'Defina o turno e as permissões de trabalho do dia.',
-                      ),
-                      const SizedBox(height: 8),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF9FAFB),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: _kCardBorder),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: <Widget>[
-                            subsectionLabel(
-                              '1) Turno do RDO',
-                              icon: Icons.dark_mode_rounded,
-                            ),
-                            const SizedBox(height: 7),
-                            Wrap(
-                              spacing: 8,
-                              children: <Widget>[
-                                ChoiceChip(
-                                  label: const Text('Diurno'),
-                                  selected: turno == 'Diurno',
-                                  onSelected: (_) {
-                                    setModalState(() {
-                                      turno = 'Diurno';
-                                    });
-                                  },
-                                ),
-                                ChoiceChip(
-                                  label: const Text('Noturno'),
-                                  selected: turno == 'Noturno',
-                                  onSelected: (_) {
-                                    setModalState(() {
-                                      turno = 'Noturno';
-                                    });
-                                  },
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 10),
-                            const Divider(height: 1),
-                            const SizedBox(height: 10),
-                            subsectionLabel(
-                              '2) Permissão de Trabalho (PT)',
-                              icon: Icons.assignment_turned_in_rounded,
-                            ),
-                            const SizedBox(height: 8),
-                            DropdownButtonFormField<String>(
-                              initialValue: ptAbertura.isEmpty
-                                  ? null
-                                  : ptAbertura,
-                              decoration: const InputDecoration(
-                                labelText: 'Houve abertura de PT neste turno?',
-                                border: OutlineInputBorder(),
-                              ),
-                              items: const <DropdownMenuItem<String>>[
-                                DropdownMenuItem<String>(
-                                  value: 'sim',
-                                  child: Text('Sim'),
-                                ),
-                                DropdownMenuItem<String>(
-                                  value: 'nao',
-                                  child: Text('Não'),
-                                ),
-                              ],
-                              onChanged: (value) {
-                                setModalState(() {
-                                  ptAbertura = value ?? '';
-                                  applyPtLock();
-                                });
-                              },
-                            ),
-                            const SizedBox(height: 8),
-                            IgnorePointer(
-                              ignoring: ptAbertura == 'nao',
-                              child: Opacity(
-                                opacity: ptAbertura == 'nao' ? 0.55 : 1,
-                                child: Wrap(
-                                  spacing: 8,
-                                  runSpacing: 8,
-                                  children: ptChoices
-                                      .map((choice) {
-                                        final selected = ptTurnos.contains(
-                                          choice.value,
-                                        );
-                                        return FilterChip(
-                                          label: Text(choice.label),
-                                          selected: selected,
-                                          onSelected: (checked) {
-                                            setModalState(() {
-                                              if (checked) {
-                                                ptTurnos.add(choice.value);
-                                              } else {
-                                                ptTurnos.remove(choice.value);
-                                              }
-                                            });
-                                          },
-                                        );
-                                      })
-                                      .toList(growable: false),
-                                ),
-                              ),
-                            ),
-                            if (ptAbertura == 'nao') ...<Widget>[
-                              const SizedBox(height: 8),
-                              const Text(
-                                'Sem abertura de PT: os números abaixo ficam bloqueados.',
-                                style: TextStyle(
-                                  color: _kMutedInk,
-                                  fontSize: 12.2,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                            const SizedBox(height: 8),
-                            Row(
-                              children: <Widget>[
-                                Expanded(
-                                  child: TextField(
-                                    controller: ptManhaController,
-                                    readOnly: ptAbertura == 'nao',
-                                    decoration: const InputDecoration(
-                                      labelText: 'PT manhã (nº)',
-                                      border: OutlineInputBorder(),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: TextField(
-                                    controller: ptTardeController,
-                                    readOnly: ptAbertura == 'nao',
-                                    decoration: const InputDecoration(
-                                      labelText: 'PT tarde (nº)',
-                                      border: OutlineInputBorder(),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: TextField(
-                                    controller: ptNoiteController,
-                                    readOnly: ptAbertura == 'nao',
-                                    decoration: const InputDecoration(
-                                      labelText: 'PT noite (nº)',
-                                      border: OutlineInputBorder(),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      sectionTitle(
-                        'Atividades',
-                        subtitle:
-                            'Registre as etapas executadas no dia, com horários e comentários. O campo EN é preenchido automaticamente.',
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: <Widget>[
-                          Text(
-                            '${activities.length}/20 atividades',
-                            style: const TextStyle(
-                              color: _kMutedInk,
-                              fontSize: 12.2,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          const Spacer(),
-                          TextButton.icon(
-                            onPressed: activities.length >= 20
-                                ? null
-                                : () {
-                                    setModalState(() {
-                                      cancelActivityTranslationTimers();
-                                      activities.add(const _ActivityDraft());
-                                      if (activities.length >= 2) {
-                                        final prev =
-                                            activities[activities.length - 2];
-                                        final current = activities.last;
-                                        if (current.inicio == null &&
-                                            prev.fim != null) {
-                                          activities[activities.length -
-                                              1] = current.copyWith(
-                                            inicio: prev.fim,
-                                          );
-                                        }
-                                      }
-                                    });
-                                  },
-                            icon: const Icon(Icons.add_rounded, size: 18),
-                            label: const Text('Adicionar'),
-                          ),
-                        ],
-                      ),
-                      ...activities.asMap().entries.map((entry) {
-                        final index = entry.key;
-                        final row = entry.value;
-                        final hasValues =
-                            row.nome.trim().isNotEmpty ||
-                            row.inicio != null ||
-                            row.fim != null ||
-                            row.comentarioPt.trim().isNotEmpty ||
-                            row.comentarioEn.trim().isNotEmpty;
-                        final activityOptions = ensureChoiceContains(
-                          activityChoices,
-                          row.nome,
-                        );
-                        final atividadeEn = translateActivityLabelToEn(
-                          row.nome,
-                        );
-
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 10),
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF9FAFB),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: hasValues
-                                  ? AppTheme.supervisorLime.withValues(
-                                      alpha: .5,
-                                    )
-                                  : _kCardBorder,
-                            ),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: <Widget>[
-                              Row(
-                                children: <Widget>[
-                                  Expanded(
-                                    child: Text(
-                                      'Atividade ${index + 1}',
-                                      style: const TextStyle(
-                                        color: _kInk,
-                                        fontSize: 12.4,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                  ),
-                                  IconButton(
-                                    onPressed: activities.length <= 1
-                                        ? null
-                                        : () {
-                                            setModalState(() {
-                                              cancelActivityTranslationTimers();
-                                              activities.removeAt(index);
-                                            });
-                                          },
-                                    icon: const Icon(
-                                      Icons.delete_outline_rounded,
-                                      size: 18,
-                                    ),
-                                    tooltip: 'Remover atividade',
-                                  ),
-                                ],
-                              ),
-                              if (activityOptions.isEmpty)
-                                TextFormField(
-                                  initialValue: row.nome,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Atividade (PT)',
-                                    border: OutlineInputBorder(),
-                                  ),
-                                  onChanged: (value) {
-                                    setModalState(() {
-                                      final current = activities[index];
-                                      final previousAutoCommentEn =
-                                          autoTranslateTextToEn(
-                                            current.comentarioPt,
-                                            activityValue: current.nome,
-                                          );
-                                      final shouldAutoFillEn =
-                                          current.comentarioEn.trim().isEmpty ||
-                                          current.comentarioEn.trim() ==
-                                              previousAutoCommentEn.trim();
-                                      activities[index] = current.copyWith(
-                                        nome: value,
-                                        comentarioEn: shouldAutoFillEn
-                                            ? autoTranslateTextToEn(
-                                                current.comentarioPt,
-                                                activityValue: value,
-                                              )
-                                            : current.comentarioEn,
-                                      );
-                                    });
-                                    if (index >= 0 &&
-                                        index < activities.length) {
-                                      final updated = activities[index];
-                                      final updatedAutoCommentEn =
-                                          autoTranslateTextToEn(
-                                            updated.comentarioPt,
-                                            activityValue: updated.nome,
-                                          );
-                                      final shouldAutoFillEn =
-                                          updated.comentarioEn.trim().isEmpty ||
-                                          updated.comentarioEn.trim() ==
-                                              updatedAutoCommentEn.trim();
-                                      if (shouldAutoFillEn &&
-                                          updated.comentarioPt.trim().length >=
-                                              3) {
-                                        scheduleActivityCommentTranslation(
-                                          index,
-                                          setModalState,
-                                        );
-                                      } else {
-                                        cancelTranslationTimer(
-                                          'activity_comment_$index',
-                                        );
-                                      }
-                                    }
-                                  },
-                                )
-                              else
-                                InkWell(
-                                  borderRadius: BorderRadius.circular(6),
-                                  onTap: () async {
-                                    final picked = await openChoicePicker(
-                                      title: 'Selecionar atividade',
-                                      options: activityOptions,
-                                      initialValue: row.nome,
-                                      allowManualValue: true,
-                                    );
-                                    if (picked == null) {
-                                      return;
-                                    }
-
-                                    final nextNome = picked.value.trim();
-                                    setModalState(() {
-                                      final current = activities[index];
-                                      final previousAutoCommentEn =
-                                          autoTranslateTextToEn(
-                                            current.comentarioPt,
-                                            activityValue: current.nome,
-                                          );
-                                      final shouldAutoFillEn =
-                                          current.comentarioEn.trim().isEmpty ||
-                                          current.comentarioEn.trim() ==
-                                              previousAutoCommentEn.trim();
-                                      activities[index] = current.copyWith(
-                                        nome: nextNome,
-                                        comentarioEn: shouldAutoFillEn
-                                            ? autoTranslateTextToEn(
-                                                current.comentarioPt,
-                                                activityValue: nextNome,
-                                              )
-                                            : current.comentarioEn,
-                                      );
-                                    });
-                                    if (index >= 0 &&
-                                        index < activities.length) {
-                                      final updated = activities[index];
-                                      final updatedAutoCommentEn =
-                                          autoTranslateTextToEn(
-                                            updated.comentarioPt,
-                                            activityValue: updated.nome,
-                                          );
-                                      final shouldAutoFillEn =
-                                          updated.comentarioEn.trim().isEmpty ||
-                                          updated.comentarioEn.trim() ==
-                                              updatedAutoCommentEn.trim();
-                                      if (shouldAutoFillEn &&
-                                          updated.comentarioPt.trim().length >=
-                                              3) {
-                                        scheduleActivityCommentTranslation(
-                                          index,
-                                          setModalState,
-                                        );
-                                      } else {
-                                        cancelTranslationTimer(
-                                          'activity_comment_$index',
-                                        );
-                                      }
-                                    }
-                                  },
-                                  child: IgnorePointer(
-                                    child: searchableChoiceDecorator(
-                                      labelText: 'Atividade (PT)',
-                                      hintText: 'Toque para buscar atividade',
-                                      selectedLabel: row.nome.trim().isEmpty
-                                          ? ''
-                                          : (findChoiceByValue(
-                                                  row.nome,
-                                                  activityOptions,
-                                                )?.label ??
-                                                row.nome),
-                                    ),
-                                  ),
-                                ),
-                              if (atividadeEn.isNotEmpty) ...<Widget>[
-                                const SizedBox(height: 6),
-                                Text(
-                                  'Tradução EN: $atividadeEn',
-                                  style: const TextStyle(
-                                    color: _kMutedInk,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                              const SizedBox(height: 8),
-                              Row(
-                                children: <Widget>[
-                                  Expanded(
-                                    child: TextFormField(
-                                      key: ValueKey<String>(
-                                        'activity-start-$index-${row.inicio == null ? 'empty' : _formatTimeOfDay(row.inicio!)}',
-                                      ),
-                                      initialValue: row.inicio == null
-                                          ? ''
-                                          : _formatTimeOfDay(row.inicio!),
-                                      keyboardType: TextInputType.datetime,
-                                      decoration: InputDecoration(
-                                        labelText: 'Início da atividade',
-                                        hintText: '08:00',
-                                        border: const OutlineInputBorder(),
-                                        suffixIcon: IconButton(
-                                          icon: const Icon(
-                                            Icons.schedule_rounded,
-                                          ),
-                                          tooltip: 'Selecionar horário',
-                                          onPressed: () async {
-                                            final picked = await showTimePicker(
-                                              context: modalContext,
-                                              initialTime:
-                                                  row.inicio ?? TimeOfDay.now(),
-                                            );
-                                            if (picked == null) {
-                                              return;
-                                            }
-                                            setModalState(() {
-                                              activities[index] = row.copyWith(
-                                                inicio: picked,
-                                              );
-                                              if (index > 0 &&
-                                                  activities[index - 1].fim ==
-                                                      null) {
-                                                activities[index -
-                                                    1] = activities[index - 1]
-                                                    .copyWith(fim: picked);
-                                              }
-                                            });
-                                          },
-                                        ),
-                                      ),
-                                      onChanged: (value) {
-                                        final parsed = parseTimeValue(value);
-                                        setModalState(() {
-                                          if (value.trim().isEmpty) {
-                                            activities[index] = row.copyWith(
-                                              clearInicio: true,
-                                            );
-                                          } else if (parsed != null) {
-                                            activities[index] = row.copyWith(
-                                              inicio: parsed,
-                                            );
-                                            if (index > 0 &&
-                                                activities[index - 1].fim ==
-                                                    null) {
-                                              activities[index -
-                                                  1] = activities[index - 1]
-                                                  .copyWith(fim: parsed);
-                                            }
-                                          }
-                                        });
-                                      },
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: TextFormField(
-                                      key: ValueKey<String>(
-                                        'activity-end-$index-${row.fim == null ? 'empty' : _formatTimeOfDay(row.fim!)}',
-                                      ),
-                                      initialValue: row.fim == null
-                                          ? ''
-                                          : _formatTimeOfDay(row.fim!),
-                                      keyboardType: TextInputType.datetime,
-                                      decoration: InputDecoration(
-                                        labelText: 'Fim da atividade',
-                                        hintText: '17:30',
-                                        border: const OutlineInputBorder(),
-                                        suffixIcon: IconButton(
-                                          icon: const Icon(
-                                            Icons.schedule_rounded,
-                                          ),
-                                          tooltip: 'Selecionar horário',
-                                          onPressed: () async {
-                                            final picked = await showTimePicker(
-                                              context: modalContext,
-                                              initialTime:
-                                                  row.fim ?? TimeOfDay.now(),
-                                            );
-                                            if (picked == null) {
-                                              return;
-                                            }
-                                            setModalState(() {
-                                              activities[index] = row.copyWith(
-                                                fim: picked,
-                                              );
-                                              if (index + 1 <
-                                                      activities.length &&
-                                                  activities[index + 1]
-                                                          .inicio ==
-                                                      null) {
-                                                activities[index +
-                                                    1] = activities[index + 1]
-                                                    .copyWith(inicio: picked);
-                                              }
-                                            });
-                                          },
-                                        ),
-                                      ),
-                                      onChanged: (value) {
-                                        final parsed = parseTimeValue(value);
-                                        setModalState(() {
-                                          if (value.trim().isEmpty) {
-                                            activities[index] = row.copyWith(
-                                              clearFim: true,
-                                            );
-                                          } else if (parsed != null) {
-                                            activities[index] = row.copyWith(
-                                              fim: parsed,
-                                            );
-                                            if (index + 1 < activities.length &&
-                                                activities[index + 1].inicio ==
-                                                    null) {
-                                              activities[index +
-                                                  1] = activities[index + 1]
-                                                  .copyWith(inicio: parsed);
-                                            }
-                                          }
-                                        });
-                                      },
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              TextFormField(
-                                initialValue: row.comentarioPt,
-                                maxLines: 2,
-                                decoration: const InputDecoration(
-                                  labelText: 'Comentário da atividade (PT)',
-                                  border: OutlineInputBorder(),
-                                ),
-                                onChanged: (value) {
-                                  var shouldAutoFillEn = false;
-                                  setModalState(() {
-                                    final current = activities[index];
-                                    final previousAutoCommentEn =
-                                        autoTranslateTextToEn(
-                                          current.comentarioPt,
-                                          activityValue: current.nome,
-                                        );
-                                    shouldAutoFillEn =
-                                        current.comentarioEn.trim().isEmpty ||
-                                        current.comentarioEn.trim() ==
-                                            previousAutoCommentEn.trim();
-                                    activities[index] = current.copyWith(
-                                      comentarioPt: value,
-                                      comentarioEn: shouldAutoFillEn
-                                          ? autoTranslateTextToEn(
-                                              value,
-                                              activityValue: current.nome,
-                                            )
-                                          : current.comentarioEn,
-                                    );
-                                  });
-                                  if (shouldAutoFillEn &&
-                                      value.trim().length >= 3) {
-                                    scheduleActivityCommentTranslation(
-                                      index,
-                                      setModalState,
-                                    );
-                                  } else {
-                                    cancelTranslationTimer(
-                                      'activity_comment_$index',
-                                    );
-                                  }
-                                },
-                              ),
-                              const SizedBox(height: 8),
-                              TextFormField(
-                                initialValue: row.comentarioEn,
-                                maxLines: 2,
-                                decoration: const InputDecoration(
-                                  labelText: 'Comentário da atividade (EN)',
-                                  border: OutlineInputBorder(),
-                                ),
-                                onChanged: (value) {
-                                  cancelTranslationTimer(
-                                    'activity_comment_$index',
-                                  );
-                                  setModalState(() {
-                                    final current = activities[index];
-                                    activities[index] = current.copyWith(
-                                      comentarioEn: value,
-                                    );
-                                  });
-                                },
-                              ),
-                            ],
-                          ),
-                        );
-                      }),
-                      const SizedBox(height: 4),
-                      const Divider(height: 20),
-                      const SizedBox(height: 4),
-                      Container(
-                        key: tankSectionKey,
-                        child: sectionTitle(
-                          'Tanque',
-                          subtitle:
-                              'Selecione um tanque existente ou informe os dados para cadastrar um novo.',
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: <Widget>[
-                          ChoiceChip(
-                            label: const Text('Sem tanque'),
-                            selected: tankMode == _TankMode.none,
-                            onSelected: (_) {
-                              setModalState(() {
-                                tankMode = _TankMode.none;
-                              });
-                            },
-                          ),
-                          ChoiceChip(
-                            label: const Text('Selecionar existente'),
-                            selected: tankMode == _TankMode.existing,
-                            onSelected: (_) {
-                              setModalState(() {
-                                tankMode = _TankMode.existing;
-                                selectedTankKey ??= tankCatalog.isNotEmpty
-                                    ? tankCatalog.first.key
-                                    : null;
-                                applyTankSnapshot(selectedTankOption());
-                              });
-                            },
-                          ),
-                          ChoiceChip(
-                            label: const Text('Criar tanque'),
-                            selected: tankMode == _TankMode.create,
-                            onSelected: tankCreationLocked
-                                ? null
-                                : (_) {
-                                    setModalState(() {
-                                      tankMode = _TankMode.create;
-                                      clearTankFieldsForNew();
-                                    });
-                                  },
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        tankMode == _TankMode.none
-                            ? 'Sem tanque: o RDO será salvo somente com dados gerais.'
-                            : tankMode == _TankMode.existing
-                            ? 'Modo selecionado: usar tanque já cadastrado na OS.'
-                            : tankCreationLocked
-                            ? 'Limite de tanques da OS atingido. Cadastro de novo tanque bloqueado.'
-                            : 'Modo selecionado: cadastrar um novo tanque para esta OS.',
-                        style: const TextStyle(
-                          color: _kMutedInk,
-                          fontSize: 12.2,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      if (tankLimitEnabled) ...<Widget>[
-                        const SizedBox(height: 8),
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 8,
-                          ),
-                          decoration: BoxDecoration(
-                            color: tankCreationLocked
-                                ? const Color(0xFFFFF7ED)
-                                : const Color(0xFFF0FDF4),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: tankCreationLocked
-                                  ? const Color(0xFFFED7AA)
-                                  : const Color(0xFFBBF7D0),
-                            ),
-                          ),
-                          child: Text(
-                            tankCreationLocked
-                                ? 'Tanques da OS: $usedTankCountDisplay/$osTankLimit. Não é permitido cadastrar novos tanques.'
-                                : 'Tanques da OS: $usedTankCountDisplay/$osTankLimit. Restam $remainingTankSlots vaga(s) para novo tanque.',
-                            style: TextStyle(
-                              color: tankCreationLocked
-                                  ? const Color(0xFF9A3412)
-                                  : const Color(0xFF166534),
-                              fontSize: 12.2,
-                              fontWeight: FontWeight.w700,
-                            ),
+                        const SizedBox(height: 4),
+                        Text(
+                          summary.operationLabel,
+                          style: const TextStyle(
+                            color: _kMutedInk,
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
-                      ],
-                      if (tankMode != _TankMode.none) ...<Widget>[
-                        const SizedBox(height: 10),
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 9,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF8FAFC),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: _kCardBorder),
-                          ),
-                          child: Row(
-                            children: <Widget>[
-                              Container(
-                                width: 30,
-                                height: 30,
-                                decoration: BoxDecoration(
-                                  color: AppTheme.supervisorLime,
-                                  borderRadius: BorderRadius.circular(999),
-                                ),
-                                child: const Icon(
-                                  Icons.inventory_2_rounded,
-                                  size: 17,
-                                  color: _kInk,
-                                ),
+                        const SizedBox(height: 14),
+                        GestureDetector(
+                          onTap: () async {
+                            final picked = await showDatePicker(
+                              context: modalContext,
+                              initialDate: businessDate,
+                              firstDate: DateTime(2020),
+                              lastDate: DateTime.now().add(
+                                const Duration(days: 365),
                               ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: <Widget>[
-                                    Text(
-                                      tankLimitEnabled
-                                          ? 'Tanques da OS: $usedTankCountDisplay de $osTankLimit'
-                                          : 'Tanque $currentTankPosition de $totalTankPreview',
-                                      style: const TextStyle(
-                                        color: _kInk,
-                                        fontSize: 12.8,
-                                        fontWeight: FontWeight.w800,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      tankProgressSubtitle(),
-                                      style: const TextStyle(
-                                        color: _kMutedInk,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 5,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFE2E8F0),
-                                  borderRadius: BorderRadius.circular(999),
-                                ),
-                                child: Text(
-                                  '$addedTankCount adicionados',
-                                  style: const TextStyle(
-                                    color: _kInk,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                      if (stagedTankDrafts.isNotEmpty) ...<Widget>[
-                        const SizedBox(height: 10),
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF8FAFC),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: _kCardBorder),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: <Widget>[
-                              Row(
-                                children: <Widget>[
-                                  const Icon(
-                                    Icons.playlist_add_check_rounded,
-                                    size: 16,
-                                    color: _kInk,
-                                  ),
-                                  const SizedBox(width: 6),
-                                  const Expanded(
-                                    child: Text(
-                                      'Tanques adicionados neste RDO',
-                                      style: TextStyle(
-                                        color: _kInk,
-                                        fontSize: 12.7,
-                                        fontWeight: FontWeight.w800,
-                                      ),
-                                    ),
-                                  ),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 7,
-                                      vertical: 3,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFE2E8F0),
-                                      borderRadius: BorderRadius.circular(999),
-                                    ),
-                                    child: Text(
-                                      '${stagedTankDrafts.length}',
-                                      style: const TextStyle(
-                                        color: _kInk,
-                                        fontSize: 11.8,
-                                        fontWeight: FontWeight.w800,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              Wrap(
-                                spacing: 8,
-                                runSpacing: 8,
-                                children: List<Widget>.generate(
-                                  stagedTankDrafts.length,
-                                  (index) {
-                                    final label = describeTankDraft(
-                                      stagedTankDrafts[index],
-                                    );
-                                    return InputChip(
-                                      label: Text(
-                                        label,
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                                      onDeleted: () {
-                                        setModalState(() {
-                                          stagedTankDrafts.removeAt(index);
-                                          error = null;
-                                        });
-                                      },
-                                    );
-                                  },
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                      if (tankMode == _TankMode.none)
-                        const Padding(
-                          padding: EdgeInsets.only(top: 10),
-                          child: Text(
-                            'RDO será salvo sem tanque associado.',
-                            style: TextStyle(
-                              color: _kMutedInk,
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w600,
+                            );
+                            if (picked == null) {
+                              return;
+                            }
+                            setModalState(() {
+                              businessDate = picked;
+                            });
+                          },
+                          child: InputDecorator(
+                            decoration: const InputDecoration(
+                              labelText: 'Data do RDO',
+                              border: OutlineInputBorder(),
+                              suffixIcon: Icon(Icons.calendar_today_rounded),
                             ),
-                          ),
-                        ),
-                      if (tankMode == _TankMode.existing) ...<Widget>[
-                        const SizedBox(height: 10),
-                        if (tankCatalog.isEmpty)
-                          const Text(
-                            'Nenhum tanque disponível para seleção nesta OS.',
-                            style: TextStyle(
-                              color: _kMutedInk,
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          )
-                        else
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 10,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF8FAFC),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: _kCardBorder),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: <Widget>[
-                                const Text(
-                                  'Tanques cadastrados nesta OS',
-                                  style: TextStyle(
-                                    color: _kInk,
-                                    fontSize: 12.6,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                Wrap(
-                                  spacing: 8,
-                                  runSpacing: 8,
-                                  children: tankCatalog
-                                      .map((item) {
-                                        final selected =
-                                            (selectedTankKey ?? '') == item.key;
-                                        return ChoiceChip(
-                                          label: Text(item.label),
-                                          selected: selected,
-                                          onSelected: (_) {
-                                            setModalState(() {
-                                              selectedTankKey = item.key;
-                                              applyTankSnapshot(item);
-                                              error = null;
-                                            });
-                                          },
-                                        );
-                                      })
-                                      .toList(growable: false),
-                                ),
-                              ],
-                            ),
-                          ),
-                      ],
-                      if (tankMode != _TankMode.none) ...<Widget>[
-                        const SizedBox(height: 8),
-                        subsectionLabel(
-                          'Identificação e características do tanque',
-                          icon: Icons.inventory_2_rounded,
-                        ),
-                        const SizedBox(height: 8),
-                        if (fixedFieldsLockedForSelectedTank())
-                          const Padding(
-                            padding: EdgeInsets.only(bottom: 8),
                             child: Text(
-                              'Este tanque já existe na OS. Os dados fixos de cadastro ficam bloqueados.',
-                              style: TextStyle(
-                                color: _kMutedInk,
-                                fontSize: 12.2,
+                              _formatDate(businessDate),
+                              style: const TextStyle(
+                                color: _kInk,
+                                fontSize: 14,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
                           ),
-                        TextField(
-                          controller: tanqueCodigoController,
-                          readOnly:
-                              tankCreationLocked ||
-                              fixedFieldsLockedForSelectedTank(),
-                          textInputAction: TextInputAction.next,
-                          onChanged: (_) {
-                            setModalState(() {
-                              if (error != null && error!.trim().isNotEmpty) {
-                                error = null;
-                              }
-                            });
-                          },
-                          decoration: const InputDecoration(
-                            labelText: 'Código do tanque (opcional)',
-                            border: OutlineInputBorder(),
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        TextField(
-                          controller: tanqueNomeController,
-                          readOnly:
-                              tankCreationLocked ||
-                              fixedFieldsLockedForSelectedTank(),
-                          textInputAction: TextInputAction.done,
-                          onChanged: (_) {
-                            setModalState(() {
-                              if (error != null && error!.trim().isNotEmpty) {
-                                error = null;
-                              }
-                            });
-                          },
-                          decoration: const InputDecoration(
-                            labelText: 'Nome do tanque',
-                            border: OutlineInputBorder(),
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        DropdownButtonFormField<String>(
-                          initialValue: tipoTanque.isEmpty ? null : tipoTanque,
-                          decoration: const InputDecoration(
-                            labelText: 'Tipo de tanque',
-                            border: OutlineInputBorder(),
-                          ),
-                          items: const <DropdownMenuItem<String>>[
-                            DropdownMenuItem<String>(
-                              value: 'Salão',
-                              child: Text('Salão'),
-                            ),
-                            DropdownMenuItem<String>(
-                              value: 'Compartimento',
-                              child: Text('Compartimento'),
-                            ),
-                          ],
-                          onChanged: fixedFieldsLockedForSelectedTank()
-                              ? null
-                              : (value) {
-                                  setModalState(() {
-                                    tipoTanque = value ?? '';
-                                    applyTipoTanqueLock();
-                                  });
-                                },
-                        ),
-                        const SizedBox(height: 10),
-                        Row(
-                          children: <Widget>[
-                            Expanded(
-                              child: TextField(
-                                controller: tanqueCompartimentosController,
-                                keyboardType: TextInputType.number,
-                                readOnly: fixedFieldsLockedForSelectedTank(),
-                                onChanged: fixedFieldsLockedForSelectedTank()
-                                    ? null
-                                    : (_) {
-                                        setModalState(() {
-                                          applyTipoTanqueLock();
-                                        });
-                                      },
-                                decoration: const InputDecoration(
-                                  labelText: 'Nº de compartimentos',
-                                  border: OutlineInputBorder(),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: TextField(
-                                controller: tanqueGavetasController,
-                                keyboardType: TextInputType.number,
-                                readOnly:
-                                    fixedFieldsLockedForSelectedTank() ||
-                                    isSalao(),
-                                decoration: const InputDecoration(
-                                  labelText: 'Gavetas',
-                                  border: OutlineInputBorder(),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
-                        Row(
-                          children: <Widget>[
-                            Expanded(
-                              child: TextField(
-                                controller: tanquePatamarController,
-                                keyboardType: TextInputType.number,
-                                readOnly:
-                                    fixedFieldsLockedForSelectedTank() ||
-                                    isSalao(),
-                                decoration: const InputDecoration(
-                                  labelText: 'Patamares',
-                                  border: OutlineInputBorder(),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: TextField(
-                                controller: tanqueVolumeController,
-                                keyboardType:
-                                    const TextInputType.numberWithOptions(
-                                      decimal: true,
-                                    ),
-                                readOnly: fixedFieldsLockedForSelectedTank(),
-                                decoration: const InputDecoration(
-                                  labelText: 'Volume executado (m³)',
-                                  border: OutlineInputBorder(),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
-                        subsectionLabel(
-                          'Serviço e método de execução',
-                          icon: Icons.build_circle_rounded,
-                        ),
-                        const SizedBox(height: 8),
-                        Builder(
-                          builder: (context) {
-                            final serviceOptions = ensureChoiceContains(
-                              serviceChoices,
-                              tanqueServicoController.text,
-                            );
-                            if (serviceOptions.isEmpty) {
-                              return TextField(
-                                controller: tanqueServicoController,
-                                readOnly: fixedFieldsLockedForSelectedTank(),
-                                decoration: const InputDecoration(
-                                  labelText: 'Serviço executado',
-                                  border: OutlineInputBorder(),
-                                ),
-                              );
-                            }
-                            return InkWell(
-                              borderRadius: BorderRadius.circular(6),
-                              onTap: fixedFieldsLockedForSelectedTank()
-                                  ? null
-                                  : () async {
-                                      final picked = await openChoicePicker(
-                                        title: 'Selecionar serviço executado',
-                                        options: serviceOptions,
-                                        initialValue:
-                                            tanqueServicoController.text,
-                                        allowManualValue: true,
-                                      );
-                                      if (picked == null) {
-                                        return;
-                                      }
-                                      setModalState(() {
-                                        setControllerText(
-                                          tanqueServicoController,
-                                          picked.value,
-                                        );
-                                      });
-                                    },
-                              child: IgnorePointer(
-                                child: searchableChoiceDecorator(
-                                  labelText: 'Serviço executado',
-                                  hintText: 'Toque para buscar serviço',
-                                  selectedLabel:
-                                      tanqueServicoController.text
-                                          .trim()
-                                          .isEmpty
-                                      ? ''
-                                      : (findChoiceByValue(
-                                              tanqueServicoController.text,
-                                              serviceOptions,
-                                            )?.label ??
-                                            tanqueServicoController.text),
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                        const SizedBox(height: 10),
-                        Builder(
-                          builder: (context) {
-                            final methodOptions = ensureChoiceContains(
-                              methodChoices,
-                              tanqueMetodoController.text,
-                            );
-                            if (methodOptions.isEmpty) {
-                              return TextField(
-                                controller: tanqueMetodoController,
-                                readOnly: fixedFieldsLockedForSelectedTank(),
-                                decoration: const InputDecoration(
-                                  labelText: 'Método executado',
-                                  border: OutlineInputBorder(),
-                                ),
-                              );
-                            }
-                            return InkWell(
-                              borderRadius: BorderRadius.circular(6),
-                              onTap: fixedFieldsLockedForSelectedTank()
-                                  ? null
-                                  : () async {
-                                      final picked = await openChoicePicker(
-                                        title: 'Selecionar método executado',
-                                        options: methodOptions,
-                                        initialValue:
-                                            tanqueMetodoController.text,
-                                        allowManualValue: true,
-                                      );
-                                      if (picked == null) {
-                                        return;
-                                      }
-                                      setModalState(() {
-                                        setControllerText(
-                                          tanqueMetodoController,
-                                          picked.value,
-                                        );
-                                      });
-                                    },
-                              child: IgnorePointer(
-                                child: searchableChoiceDecorator(
-                                  labelText: 'Método executado',
-                                  hintText: 'Toque para buscar método',
-                                  selectedLabel:
-                                      tanqueMetodoController.text.trim().isEmpty
-                                      ? ''
-                                      : (findChoiceByValue(
-                                              tanqueMetodoController.text,
-                                              methodOptions,
-                                            )?.label ??
-                                            tanqueMetodoController.text),
-                                ),
-                              ),
-                            );
-                          },
                         ),
                         const SizedBox(height: 12),
                         sectionTitle(
-                          'Espaço confinado',
+                          'Turno e PT',
                           subtitle:
-                              'Preencha somente quando houver atividade em área confinada neste RDO.',
-                        ),
-                        const SizedBox(height: 8),
-                        DropdownButtonFormField<String>(
-                          initialValue: espacoConfinado.isEmpty
-                              ? null
-                              : espacoConfinado,
-                          decoration: const InputDecoration(
-                            labelText:
-                                'Houve acesso em espaço confinado neste dia?',
-                            border: OutlineInputBorder(),
-                          ),
-                          items: const <DropdownMenuItem<String>>[
-                            DropdownMenuItem<String>(
-                              value: 'sim',
-                              child: Text('Sim'),
-                            ),
-                            DropdownMenuItem<String>(
-                              value: 'nao',
-                              child: Text('Não'),
-                            ),
-                          ],
-                          onChanged: (value) {
-                            setModalState(() {
-                              espacoConfinado = value ?? '';
-                              applyEcLock();
-                            });
-                          },
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: <Widget>[
-                            Expanded(
-                              child: TextField(
-                                controller: operadoresController,
-                                keyboardType: TextInputType.number,
-                                decoration: const InputDecoration(
-                                  labelText: 'Operadores simultâneos',
-                                  border: OutlineInputBorder(),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: TextField(
-                                controller: efetivoConfinadoController,
-                                keyboardType: TextInputType.number,
-                                decoration: const InputDecoration(
-                                  labelText: 'Efetivo no confinado (nº)',
-                                  border: OutlineInputBorder(),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: <Widget>[
-                            Expanded(
-                              child: TextField(
-                                controller: h2sController,
-                                keyboardType:
-                                    const TextInputType.numberWithOptions(
-                                      decimal: true,
-                                    ),
-                                decoration: const InputDecoration(
-                                  labelText: 'H2S (ppm)',
-                                  border: OutlineInputBorder(),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: TextField(
-                                controller: lelController,
-                                keyboardType:
-                                    const TextInputType.numberWithOptions(
-                                      decimal: true,
-                                    ),
-                                decoration: const InputDecoration(
-                                  labelText: 'LEL',
-                                  border: OutlineInputBorder(),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: <Widget>[
-                            Expanded(
-                              child: TextField(
-                                controller: coController,
-                                keyboardType:
-                                    const TextInputType.numberWithOptions(
-                                      decimal: true,
-                                    ),
-                                decoration: const InputDecoration(
-                                  labelText: 'CO (ppm)',
-                                  border: OutlineInputBorder(),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: TextField(
-                                controller: o2Controller,
-                                keyboardType:
-                                    const TextInputType.numberWithOptions(
-                                      decimal: true,
-                                    ),
-                                decoration: const InputDecoration(
-                                  labelText: 'O2 (%)',
-                                  border: OutlineInputBorder(),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        sectionTitle(
-                          'Entradas e saídas no confinado',
-                          subtitle:
-                              'Registre os intervalos de entrada/saída da equipe no espaço confinado.',
-                        ),
-                        const SizedBox(height: 6),
-                        IgnorePointer(
-                          ignoring: espacoConfinado == 'nao',
-                          child: Opacity(
-                            opacity: espacoConfinado == 'nao' ? 0.55 : 1,
-                            child: Column(
-                              children: List<Widget>.generate(6, (index) {
-                                final row = ecTimes[index];
-                                return Container(
-                                  margin: const EdgeInsets.only(bottom: 8),
-                                  padding: const EdgeInsets.all(10),
-                                  decoration: BoxDecoration(
-                                    border: Border.all(color: _kCardBorder),
-                                    borderRadius: BorderRadius.circular(10),
-                                    color: const Color(0xFFF9FAFB),
-                                  ),
-                                  child: Row(
-                                    children: <Widget>[
-                                      Expanded(
-                                        child: TextFormField(
-                                          key: ValueKey<String>(
-                                            'ec-entry-$index-${row.entrada == null ? 'empty' : _formatTimeOfDay(row.entrada!)}',
-                                          ),
-                                          initialValue: row.entrada == null
-                                              ? ''
-                                              : _formatTimeOfDay(row.entrada!),
-                                          keyboardType: TextInputType.datetime,
-                                          decoration: InputDecoration(
-                                            labelText:
-                                                'Entrada ${index + 1} (hora)',
-                                            hintText: '08:00',
-                                            border: const OutlineInputBorder(),
-                                            suffixIcon: IconButton(
-                                              icon: const Icon(
-                                                Icons.schedule_rounded,
-                                              ),
-                                              onPressed: () async {
-                                                final picked =
-                                                    await showTimePicker(
-                                                      context: modalContext,
-                                                      initialTime:
-                                                          row.entrada ??
-                                                          TimeOfDay.now(),
-                                                    );
-                                                if (picked == null) {
-                                                  return;
-                                                }
-                                                setModalState(() {
-                                                  ecTimes[index] = row.copyWith(
-                                                    entrada: picked,
-                                                  );
-                                                });
-                                              },
-                                            ),
-                                          ),
-                                          onChanged: (value) {
-                                            final parsed = parseTimeValue(
-                                              value,
-                                            );
-                                            setModalState(() {
-                                              if (value.trim().isEmpty) {
-                                                ecTimes[index] = row.copyWith(
-                                                  entrada: null,
-                                                );
-                                              } else if (parsed != null) {
-                                                ecTimes[index] = row.copyWith(
-                                                  entrada: parsed,
-                                                );
-                                              }
-                                            });
-                                          },
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: TextFormField(
-                                          key: ValueKey<String>(
-                                            'ec-exit-$index-${row.saida == null ? 'empty' : _formatTimeOfDay(row.saida!)}',
-                                          ),
-                                          initialValue: row.saida == null
-                                              ? ''
-                                              : _formatTimeOfDay(row.saida!),
-                                          keyboardType: TextInputType.datetime,
-                                          decoration: InputDecoration(
-                                            labelText:
-                                                'Saída ${index + 1} (hora)',
-                                            hintText: '12:00',
-                                            border: const OutlineInputBorder(),
-                                            suffixIcon: IconButton(
-                                              icon: const Icon(
-                                                Icons.schedule_rounded,
-                                              ),
-                                              onPressed: () async {
-                                                final picked =
-                                                    await showTimePicker(
-                                                      context: modalContext,
-                                                      initialTime:
-                                                          row.saida ??
-                                                          TimeOfDay.now(),
-                                                    );
-                                                if (picked == null) {
-                                                  return;
-                                                }
-                                                setModalState(() {
-                                                  ecTimes[index] = row.copyWith(
-                                                    saida: picked,
-                                                  );
-                                                });
-                                              },
-                                            ),
-                                          ),
-                                          onChanged: (value) {
-                                            final parsed = parseTimeValue(
-                                              value,
-                                            );
-                                            setModalState(() {
-                                              if (value.trim().isEmpty) {
-                                                ecTimes[index] = row.copyWith(
-                                                  saida: null,
-                                                );
-                                              } else if (parsed != null) {
-                                                ecTimes[index] = row.copyWith(
-                                                  saida: parsed,
-                                                );
-                                              }
-                                            });
-                                          },
-                                        ),
-                                      ),
-                                      IconButton(
-                                        tooltip: 'Limpar intervalo',
-                                        onPressed: () {
-                                          setModalState(() {
-                                            ecTimes[index] =
-                                                const _EcTimeDraft();
-                                          });
-                                        },
-                                        icon: const Icon(
-                                          Icons.delete_outline_rounded,
-                                          size: 18,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              }),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        sectionTitle(
-                          'Dados operacionais',
-                          subtitle:
-                              'Preencha os campos diários. Os campos acumulados são calculados automaticamente.',
+                              'Defina o turno e as permissões de trabalho do dia.',
                         ),
                         const SizedBox(height: 8),
                         Container(
@@ -8470,80 +6977,1536 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: <Widget>[
-                              Container(
-                                width: double.infinity,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 8,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: _kGreenSoft,
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(
-                                    color: AppTheme.supervisorLime.withValues(
-                                      alpha: .55,
-                                    ),
+                              subsectionLabel(
+                                '1) Turno do RDO',
+                                icon: Icons.dark_mode_rounded,
+                              ),
+                              const SizedBox(height: 7),
+                              Wrap(
+                                spacing: 8,
+                                children: <Widget>[
+                                  ChoiceChip(
+                                    label: const Text('Diurno'),
+                                    selected: turno == 'Diurno',
+                                    onSelected: (_) {
+                                      setModalState(() {
+                                        turno = 'Diurno';
+                                      });
+                                    },
                                   ),
-                                ),
-                                child: const Text(
-                                  'Organização dos dados: Previsão inicial, Produção diária (RDO atual) e Acumulado da operação.',
-                                  style: TextStyle(
-                                    color: _kInk,
-                                    fontSize: 12.2,
-                                    fontWeight: FontWeight.w700,
+                                  ChoiceChip(
+                                    label: const Text('Noturno'),
+                                    selected: turno == 'Noturno',
+                                    onSelected: (_) {
+                                      setModalState(() {
+                                        turno = 'Noturno';
+                                      });
+                                    },
                                   ),
-                                ),
+                                ],
                               ),
                               const SizedBox(height: 10),
+                              const Divider(height: 1),
+                              const SizedBox(height: 10),
                               subsectionLabel(
-                                '1) Previsão inicial',
-                                icon: Icons.event_note_rounded,
+                                '2) Permissão de Trabalho (PT)',
+                                icon: Icons.assignment_turned_in_rounded,
                               ),
+                              const SizedBox(height: 8),
+                              DropdownButtonFormField<String>(
+                                initialValue: ptAbertura.isEmpty
+                                    ? null
+                                    : ptAbertura,
+                                decoration: const InputDecoration(
+                                  labelText:
+                                      'Houve abertura de PT neste turno?',
+                                  border: OutlineInputBorder(),
+                                ),
+                                items: const <DropdownMenuItem<String>>[
+                                  DropdownMenuItem<String>(
+                                    value: 'sim',
+                                    child: Text('Sim'),
+                                  ),
+                                  DropdownMenuItem<String>(
+                                    value: 'nao',
+                                    child: Text('Não'),
+                                  ),
+                                ],
+                                onChanged: (value) {
+                                  setModalState(() {
+                                    ptAbertura = value ?? '';
+                                    applyPtLock();
+                                  });
+                                },
+                              ),
+                              const SizedBox(height: 8),
+                              IgnorePointer(
+                                ignoring: ptAbertura == 'nao',
+                                child: Opacity(
+                                  opacity: ptAbertura == 'nao' ? 0.55 : 1,
+                                  child: Wrap(
+                                    spacing: 8,
+                                    runSpacing: 8,
+                                    children: ptChoices
+                                        .map((choice) {
+                                          final selected = ptTurnos.contains(
+                                            choice.value,
+                                          );
+                                          return FilterChip(
+                                            label: Text(choice.label),
+                                            selected: selected,
+                                            onSelected: (checked) {
+                                              setModalState(() {
+                                                if (checked) {
+                                                  ptTurnos.add(choice.value);
+                                                } else {
+                                                  ptTurnos.remove(choice.value);
+                                                }
+                                              });
+                                            },
+                                          );
+                                        })
+                                        .toList(growable: false),
+                                  ),
+                                ),
+                              ),
+                              if (ptAbertura == 'nao') ...<Widget>[
+                                const SizedBox(height: 8),
+                                const Text(
+                                  'Sem abertura de PT: os números abaixo ficam bloqueados.',
+                                  style: TextStyle(
+                                    color: _kMutedInk,
+                                    fontSize: 12.2,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
                               const SizedBox(height: 8),
                               Row(
                                 children: <Widget>[
                                   Expanded(
                                     child: TextField(
-                                      controller: ensacamentoPrevController,
-                                      keyboardType: TextInputType.number,
-                                      readOnly: predictionsLocked,
-                                      decoration: InputDecoration(
-                                        labelText: 'Ensacamento previsto',
-                                        border: const OutlineInputBorder(),
-                                        filled: predictionsLocked,
-                                        fillColor: predictionsLocked
-                                            ? const Color(0xFFF3F4F6)
-                                            : null,
+                                      controller: ptManhaController,
+                                      readOnly: ptAbertura == 'nao',
+                                      decoration: const InputDecoration(
+                                        labelText: 'PT manhã (nº)',
+                                        border: OutlineInputBorder(),
                                       ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: readonlyField(
-                                      controller: icamentoPrevController,
-                                      label: 'Içamento previsto',
                                     ),
                                   ),
                                   const SizedBox(width: 8),
                                   Expanded(
                                     child: TextField(
-                                      controller: cambagemPrevController,
-                                      keyboardType: TextInputType.number,
-                                      readOnly: predictionsLocked,
-                                      decoration: InputDecoration(
-                                        labelText: 'Cambagem prevista',
-                                        border: const OutlineInputBorder(),
-                                        filled: predictionsLocked,
-                                        fillColor: predictionsLocked
-                                            ? const Color(0xFFF3F4F6)
-                                            : null,
+                                      controller: ptTardeController,
+                                      readOnly: ptAbertura == 'nao',
+                                      decoration: const InputDecoration(
+                                        labelText: 'PT tarde (nº)',
+                                        border: OutlineInputBorder(),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: TextField(
+                                      controller: ptNoiteController,
+                                      readOnly: ptAbertura == 'nao',
+                                      decoration: const InputDecoration(
+                                        labelText: 'PT noite (nº)',
+                                        border: OutlineInputBorder(),
                                       ),
                                     ),
                                   ),
                                 ],
                               ),
-                              if (predictionsLocked) ...<Widget>[
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        sectionTitle(
+                          'Atividades',
+                          subtitle:
+                              'Registre as etapas executadas no dia, com horários e comentários. O campo EN é preenchido automaticamente.',
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: <Widget>[
+                            Text(
+                              '${activities.length}/20 atividades',
+                              style: const TextStyle(
+                                color: _kMutedInk,
+                                fontSize: 12.2,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const Spacer(),
+                            TextButton.icon(
+                              onPressed: activities.length >= 20
+                                  ? null
+                                  : () {
+                                      setModalState(() {
+                                        cancelActivityTranslationTimers();
+                                        activities.add(const _ActivityDraft());
+                                        if (activities.length >= 2) {
+                                          final prev =
+                                              activities[activities.length - 2];
+                                          final current = activities.last;
+                                          if (current.inicio == null &&
+                                              prev.fim != null) {
+                                            activities[activities.length -
+                                                1] = current.copyWith(
+                                              inicio: prev.fim,
+                                            );
+                                          }
+                                        }
+                                      });
+                                    },
+                              icon: const Icon(Icons.add_rounded, size: 18),
+                              label: const Text('Adicionar'),
+                            ),
+                          ],
+                        ),
+                        ...activities.asMap().entries.map((entry) {
+                          final index = entry.key;
+                          final row = entry.value;
+                          final hasValues =
+                              row.nome.trim().isNotEmpty ||
+                              row.inicio != null ||
+                              row.fim != null ||
+                              row.comentarioPt.trim().isNotEmpty ||
+                              row.comentarioEn.trim().isNotEmpty;
+                          final activityOptions = ensureChoiceContains(
+                            activityChoices,
+                            row.nome,
+                          );
+                          final atividadeEn = translateActivityLabelToEn(
+                            row.nome,
+                          );
+
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 10),
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF9FAFB),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: hasValues
+                                    ? AppTheme.supervisorLime.withValues(
+                                        alpha: .5,
+                                      )
+                                    : _kCardBorder,
+                              ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: <Widget>[
+                                Row(
+                                  children: <Widget>[
+                                    Expanded(
+                                      child: Text(
+                                        'Atividade ${index + 1}',
+                                        style: const TextStyle(
+                                          color: _kInk,
+                                          fontSize: 12.4,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ),
+                                    IconButton(
+                                      onPressed: activities.length <= 1
+                                          ? null
+                                          : () {
+                                              setModalState(() {
+                                                cancelActivityTranslationTimers();
+                                                activities.removeAt(index);
+                                              });
+                                            },
+                                      icon: const Icon(
+                                        Icons.delete_outline_rounded,
+                                        size: 18,
+                                      ),
+                                      tooltip: 'Remover atividade',
+                                    ),
+                                  ],
+                                ),
+                                if (activityOptions.isEmpty)
+                                  TextFormField(
+                                    initialValue: row.nome,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Atividade (PT)',
+                                      border: OutlineInputBorder(),
+                                    ),
+                                    onChanged: (value) {
+                                      setModalState(() {
+                                        final current = activities[index];
+                                        final previousAutoCommentEn =
+                                            autoTranslateTextToEn(
+                                              current.comentarioPt,
+                                              activityValue: current.nome,
+                                            );
+                                        final shouldAutoFillEn =
+                                            current.comentarioEn
+                                                .trim()
+                                                .isEmpty ||
+                                            current.comentarioEn.trim() ==
+                                                previousAutoCommentEn.trim();
+                                        activities[index] = current.copyWith(
+                                          nome: value,
+                                          comentarioEn: shouldAutoFillEn
+                                              ? autoTranslateTextToEn(
+                                                  current.comentarioPt,
+                                                  activityValue: value,
+                                                )
+                                              : current.comentarioEn,
+                                        );
+                                      });
+                                      if (index >= 0 &&
+                                          index < activities.length) {
+                                        final updated = activities[index];
+                                        final updatedAutoCommentEn =
+                                            autoTranslateTextToEn(
+                                              updated.comentarioPt,
+                                              activityValue: updated.nome,
+                                            );
+                                        final shouldAutoFillEn =
+                                            updated.comentarioEn
+                                                .trim()
+                                                .isEmpty ||
+                                            updated.comentarioEn.trim() ==
+                                                updatedAutoCommentEn.trim();
+                                        if (shouldAutoFillEn &&
+                                            updated.comentarioPt
+                                                    .trim()
+                                                    .length >=
+                                                3) {
+                                          scheduleActivityCommentTranslation(
+                                            index,
+                                            setModalState,
+                                          );
+                                        } else {
+                                          cancelTranslationTimer(
+                                            'activity_comment_$index',
+                                          );
+                                        }
+                                      }
+                                    },
+                                  )
+                                else
+                                  InkWell(
+                                    borderRadius: BorderRadius.circular(6),
+                                    onTap: () async {
+                                      final picked = await openChoicePicker(
+                                        title: 'Selecionar atividade',
+                                        options: activityOptions,
+                                        initialValue: row.nome,
+                                        allowManualValue: true,
+                                      );
+                                      if (picked == null) {
+                                        return;
+                                      }
+
+                                      final nextNome = picked.value.trim();
+                                      setModalState(() {
+                                        final current = activities[index];
+                                        final previousAutoCommentEn =
+                                            autoTranslateTextToEn(
+                                              current.comentarioPt,
+                                              activityValue: current.nome,
+                                            );
+                                        final shouldAutoFillEn =
+                                            current.comentarioEn
+                                                .trim()
+                                                .isEmpty ||
+                                            current.comentarioEn.trim() ==
+                                                previousAutoCommentEn.trim();
+                                        activities[index] = current.copyWith(
+                                          nome: nextNome,
+                                          comentarioEn: shouldAutoFillEn
+                                              ? autoTranslateTextToEn(
+                                                  current.comentarioPt,
+                                                  activityValue: nextNome,
+                                                )
+                                              : current.comentarioEn,
+                                        );
+                                      });
+                                      if (index >= 0 &&
+                                          index < activities.length) {
+                                        final updated = activities[index];
+                                        final updatedAutoCommentEn =
+                                            autoTranslateTextToEn(
+                                              updated.comentarioPt,
+                                              activityValue: updated.nome,
+                                            );
+                                        final shouldAutoFillEn =
+                                            updated.comentarioEn
+                                                .trim()
+                                                .isEmpty ||
+                                            updated.comentarioEn.trim() ==
+                                                updatedAutoCommentEn.trim();
+                                        if (shouldAutoFillEn &&
+                                            updated.comentarioPt
+                                                    .trim()
+                                                    .length >=
+                                                3) {
+                                          scheduleActivityCommentTranslation(
+                                            index,
+                                            setModalState,
+                                          );
+                                        } else {
+                                          cancelTranslationTimer(
+                                            'activity_comment_$index',
+                                          );
+                                        }
+                                      }
+                                    },
+                                    child: IgnorePointer(
+                                      child: searchableChoiceDecorator(
+                                        labelText: 'Atividade (PT)',
+                                        hintText: 'Toque para buscar atividade',
+                                        selectedLabel: row.nome.trim().isEmpty
+                                            ? ''
+                                            : (findChoiceByValue(
+                                                    row.nome,
+                                                    activityOptions,
+                                                  )?.label ??
+                                                  row.nome),
+                                      ),
+                                    ),
+                                  ),
+                                if (atividadeEn.isNotEmpty) ...<Widget>[
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    'Tradução EN: $atividadeEn',
+                                    style: const TextStyle(
+                                      color: _kMutedInk,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
                                 const SizedBox(height: 8),
+                                Row(
+                                  children: <Widget>[
+                                    Expanded(
+                                      child: TextFormField(
+                                        key: ValueKey<String>(
+                                          'activity-start-$index-${row.inicio == null ? 'empty' : _formatTimeOfDay(row.inicio!)}',
+                                        ),
+                                        initialValue: row.inicio == null
+                                            ? ''
+                                            : _formatTimeOfDay(row.inicio!),
+                                        keyboardType: TextInputType.datetime,
+                                        decoration: InputDecoration(
+                                          labelText: 'Início da atividade',
+                                          hintText: '08:00',
+                                          border: const OutlineInputBorder(),
+                                          suffixIcon: IconButton(
+                                            icon: const Icon(
+                                              Icons.schedule_rounded,
+                                            ),
+                                            tooltip: 'Selecionar horário',
+                                            onPressed: () async {
+                                              final picked =
+                                                  await showTimePicker(
+                                                    context: modalContext,
+                                                    initialTime:
+                                                        row.inicio ??
+                                                        TimeOfDay.now(),
+                                                  );
+                                              if (picked == null) {
+                                                return;
+                                              }
+                                              setModalState(() {
+                                                activities[index] = row
+                                                    .copyWith(inicio: picked);
+                                                if (index > 0 &&
+                                                    activities[index - 1].fim ==
+                                                        null) {
+                                                  activities[index -
+                                                      1] = activities[index - 1]
+                                                      .copyWith(fim: picked);
+                                                }
+                                              });
+                                            },
+                                          ),
+                                        ),
+                                        onChanged: (value) {
+                                          final parsed = parseTimeValue(value);
+                                          setModalState(() {
+                                            if (value.trim().isEmpty) {
+                                              activities[index] = row.copyWith(
+                                                clearInicio: true,
+                                              );
+                                            } else if (parsed != null) {
+                                              activities[index] = row.copyWith(
+                                                inicio: parsed,
+                                              );
+                                              if (index > 0 &&
+                                                  activities[index - 1].fim ==
+                                                      null) {
+                                                activities[index -
+                                                    1] = activities[index - 1]
+                                                    .copyWith(fim: parsed);
+                                              }
+                                            }
+                                          });
+                                        },
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: TextFormField(
+                                        key: ValueKey<String>(
+                                          'activity-end-$index-${row.fim == null ? 'empty' : _formatTimeOfDay(row.fim!)}',
+                                        ),
+                                        initialValue: row.fim == null
+                                            ? ''
+                                            : _formatTimeOfDay(row.fim!),
+                                        keyboardType: TextInputType.datetime,
+                                        decoration: InputDecoration(
+                                          labelText: 'Fim da atividade',
+                                          hintText: '17:30',
+                                          border: const OutlineInputBorder(),
+                                          suffixIcon: IconButton(
+                                            icon: const Icon(
+                                              Icons.schedule_rounded,
+                                            ),
+                                            tooltip: 'Selecionar horário',
+                                            onPressed: () async {
+                                              final picked =
+                                                  await showTimePicker(
+                                                    context: modalContext,
+                                                    initialTime:
+                                                        row.fim ??
+                                                        TimeOfDay.now(),
+                                                  );
+                                              if (picked == null) {
+                                                return;
+                                              }
+                                              setModalState(() {
+                                                activities[index] = row
+                                                    .copyWith(fim: picked);
+                                                if (index + 1 <
+                                                        activities.length &&
+                                                    activities[index + 1]
+                                                            .inicio ==
+                                                        null) {
+                                                  activities[index +
+                                                      1] = activities[index + 1]
+                                                      .copyWith(inicio: picked);
+                                                }
+                                              });
+                                            },
+                                          ),
+                                        ),
+                                        onChanged: (value) {
+                                          final parsed = parseTimeValue(value);
+                                          setModalState(() {
+                                            if (value.trim().isEmpty) {
+                                              activities[index] = row.copyWith(
+                                                clearFim: true,
+                                              );
+                                            } else if (parsed != null) {
+                                              activities[index] = row.copyWith(
+                                                fim: parsed,
+                                              );
+                                              if (index + 1 <
+                                                      activities.length &&
+                                                  activities[index + 1]
+                                                          .inicio ==
+                                                      null) {
+                                                activities[index +
+                                                    1] = activities[index + 1]
+                                                    .copyWith(inicio: parsed);
+                                              }
+                                            }
+                                          });
+                                        },
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                TextFormField(
+                                  initialValue: row.comentarioPt,
+                                  maxLines: 2,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Comentário da atividade (PT)',
+                                    border: OutlineInputBorder(),
+                                  ),
+                                  onChanged: (value) {
+                                    var shouldAutoFillEn = false;
+                                    setModalState(() {
+                                      final current = activities[index];
+                                      final previousAutoCommentEn =
+                                          autoTranslateTextToEn(
+                                            current.comentarioPt,
+                                            activityValue: current.nome,
+                                          );
+                                      shouldAutoFillEn =
+                                          current.comentarioEn.trim().isEmpty ||
+                                          current.comentarioEn.trim() ==
+                                              previousAutoCommentEn.trim();
+                                      activities[index] = current.copyWith(
+                                        comentarioPt: value,
+                                        comentarioEn: shouldAutoFillEn
+                                            ? autoTranslateTextToEn(
+                                                value,
+                                                activityValue: current.nome,
+                                              )
+                                            : current.comentarioEn,
+                                      );
+                                    });
+                                    if (shouldAutoFillEn &&
+                                        value.trim().length >= 3) {
+                                      scheduleActivityCommentTranslation(
+                                        index,
+                                        setModalState,
+                                      );
+                                    } else {
+                                      cancelTranslationTimer(
+                                        'activity_comment_$index',
+                                      );
+                                    }
+                                  },
+                                ),
+                                const SizedBox(height: 8),
+                                TextFormField(
+                                  initialValue: row.comentarioEn,
+                                  maxLines: 2,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Comentário da atividade (EN)',
+                                    border: OutlineInputBorder(),
+                                  ),
+                                  onChanged: (value) {
+                                    cancelTranslationTimer(
+                                      'activity_comment_$index',
+                                    );
+                                    setModalState(() {
+                                      final current = activities[index];
+                                      activities[index] = current.copyWith(
+                                        comentarioEn: value,
+                                      );
+                                    });
+                                  },
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
+                        const SizedBox(height: 4),
+                        const Divider(height: 20),
+                        const SizedBox(height: 4),
+                        Container(
+                          key: tankSectionKey,
+                          child: sectionTitle(
+                            'Tanque',
+                            subtitle:
+                                'Selecione um tanque existente ou informe os dados para cadastrar um novo.',
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: <Widget>[
+                            ChoiceChip(
+                              label: const Text('Sem tanque'),
+                              selected: tankMode == _TankMode.none,
+                              onSelected: (_) {
+                                setModalState(() {
+                                  tankMode = _TankMode.none;
+                                });
+                              },
+                            ),
+                            ChoiceChip(
+                              label: const Text('Selecionar existente'),
+                              selected: tankMode == _TankMode.existing,
+                              onSelected: (_) {
+                                setModalState(() {
+                                  tankMode = _TankMode.existing;
+                                  selectedTankKey ??= tankCatalog.isNotEmpty
+                                      ? tankCatalog.first.key
+                                      : null;
+                                  applyTankSnapshot(selectedTankOption());
+                                });
+                              },
+                            ),
+                            ChoiceChip(
+                              label: const Text('Criar tanque'),
+                              selected: tankMode == _TankMode.create,
+                              onSelected: tankCreationLocked
+                                  ? null
+                                  : (_) {
+                                      setModalState(() {
+                                        tankMode = _TankMode.create;
+                                        clearTankFieldsForNew();
+                                      });
+                                    },
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          tankMode == _TankMode.none
+                              ? 'Sem tanque: o RDO será salvo somente com dados gerais.'
+                              : tankMode == _TankMode.existing
+                              ? 'Modo selecionado: usar tanque já cadastrado na OS.'
+                              : tankCreationLocked
+                              ? 'Limite de tanques da OS atingido. Cadastro de novo tanque bloqueado.'
+                              : 'Modo selecionado: cadastrar um novo tanque para esta OS.',
+                          style: const TextStyle(
+                            color: _kMutedInk,
+                            fontSize: 12.2,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        if (tankLimitEnabled) ...<Widget>[
+                          const SizedBox(height: 8),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: tankCreationLocked
+                                  ? const Color(0xFFFFF7ED)
+                                  : const Color(0xFFF0FDF4),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: tankCreationLocked
+                                    ? const Color(0xFFFED7AA)
+                                    : const Color(0xFFBBF7D0),
+                              ),
+                            ),
+                            child: Text(
+                              tankCreationLocked
+                                  ? 'Tanques da OS: $usedTankCountDisplay/$osTankLimit. Não é permitido cadastrar novos tanques.'
+                                  : 'Tanques da OS: $usedTankCountDisplay/$osTankLimit. Restam $remainingTankSlots vaga(s) para novo tanque.',
+                              style: TextStyle(
+                                color: tankCreationLocked
+                                    ? const Color(0xFF9A3412)
+                                    : const Color(0xFF166534),
+                                fontSize: 12.2,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ],
+                        if (tankMode != _TankMode.none) ...<Widget>[
+                          const SizedBox(height: 10),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 9,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF8FAFC),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: _kCardBorder),
+                            ),
+                            child: Row(
+                              children: <Widget>[
+                                Container(
+                                  width: 30,
+                                  height: 30,
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.supervisorLime,
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
+                                  child: const Icon(
+                                    Icons.inventory_2_rounded,
+                                    size: 17,
+                                    color: _kInk,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: <Widget>[
+                                      Text(
+                                        tankLimitEnabled
+                                            ? 'Tanques da OS: $usedTankCountDisplay de $osTankLimit'
+                                            : 'Tanque $currentTankPosition de $totalTankPreview',
+                                        style: const TextStyle(
+                                          color: _kInk,
+                                          fontSize: 12.8,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        tankProgressSubtitle(),
+                                        style: const TextStyle(
+                                          color: _kMutedInk,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 5,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFE2E8F0),
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
+                                  child: Text(
+                                    '$addedTankCount adicionados',
+                                    style: const TextStyle(
+                                      color: _kInk,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                        if (stagedTankDrafts.isNotEmpty) ...<Widget>[
+                          const SizedBox(height: 10),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF8FAFC),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: _kCardBorder),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: <Widget>[
+                                Row(
+                                  children: <Widget>[
+                                    const Icon(
+                                      Icons.playlist_add_check_rounded,
+                                      size: 16,
+                                      color: _kInk,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    const Expanded(
+                                      child: Text(
+                                        'Tanques adicionados neste RDO',
+                                        style: TextStyle(
+                                          color: _kInk,
+                                          fontSize: 12.7,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                    ),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 7,
+                                        vertical: 3,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFE2E8F0),
+                                        borderRadius: BorderRadius.circular(
+                                          999,
+                                        ),
+                                      ),
+                                      child: Text(
+                                        '${stagedTankDrafts.length}',
+                                        style: const TextStyle(
+                                          color: _kInk,
+                                          fontSize: 11.8,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: List<Widget>.generate(
+                                    stagedTankDrafts.length,
+                                    (index) {
+                                      final label = describeTankDraft(
+                                        stagedTankDrafts[index],
+                                      );
+                                      return InputChip(
+                                        label: Text(
+                                          label,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                        onDeleted: () {
+                                          setModalState(() {
+                                            stagedTankDrafts.removeAt(index);
+                                            error = null;
+                                          });
+                                        },
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                        if (tankMode == _TankMode.none)
+                          const Padding(
+                            padding: EdgeInsets.only(top: 10),
+                            child: Text(
+                              'RDO será salvo sem tanque associado.',
+                              style: TextStyle(
+                                color: _kMutedInk,
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        if (tankMode == _TankMode.existing) ...<Widget>[
+                          const SizedBox(height: 10),
+                          if (tankCatalog.isEmpty)
+                            const Text(
+                              'Nenhum tanque disponível para seleção nesta OS.',
+                              style: TextStyle(
+                                color: _kMutedInk,
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            )
+                          else
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 10,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF8FAFC),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: _kCardBorder),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: <Widget>[
+                                  const Text(
+                                    'Tanques cadastrados nesta OS',
+                                    style: TextStyle(
+                                      color: _kInk,
+                                      fontSize: 12.6,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Wrap(
+                                    spacing: 8,
+                                    runSpacing: 8,
+                                    children: tankCatalog
+                                        .map((item) {
+                                          final selected =
+                                              (selectedTankKey ?? '') ==
+                                              item.key;
+                                          return ChoiceChip(
+                                            label: Text(item.label),
+                                            selected: selected,
+                                            onSelected: (_) {
+                                              setModalState(() {
+                                                selectedTankKey = item.key;
+                                                applyTankSnapshot(item);
+                                                error = null;
+                                              });
+                                            },
+                                          );
+                                        })
+                                        .toList(growable: false),
+                                  ),
+                                ],
+                              ),
+                            ),
+                        ],
+                        if (tankMode != _TankMode.none) ...<Widget>[
+                          const SizedBox(height: 8),
+                          subsectionLabel(
+                            'Identificação e características do tanque',
+                            icon: Icons.inventory_2_rounded,
+                          ),
+                          const SizedBox(height: 8),
+                          if (fixedFieldsLockedForSelectedTank())
+                            const Padding(
+                              padding: EdgeInsets.only(bottom: 8),
+                              child: Text(
+                                'Este tanque já existe na OS. Os dados fixos de cadastro ficam bloqueados.',
+                                style: TextStyle(
+                                  color: _kMutedInk,
+                                  fontSize: 12.2,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          TextField(
+                            controller: tanqueCodigoController,
+                            readOnly:
+                                tankCreationLocked ||
+                                fixedFieldsLockedForSelectedTank(),
+                            textInputAction: TextInputAction.next,
+                            onChanged: (_) {
+                              setModalState(() {
+                                if (error != null && error!.trim().isNotEmpty) {
+                                  error = null;
+                                }
+                              });
+                            },
+                            decoration: const InputDecoration(
+                              labelText: 'Código do tanque (opcional)',
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          TextField(
+                            controller: tanqueNomeController,
+                            readOnly:
+                                tankCreationLocked ||
+                                fixedFieldsLockedForSelectedTank(),
+                            textInputAction: TextInputAction.done,
+                            onChanged: (_) {
+                              setModalState(() {
+                                if (error != null && error!.trim().isNotEmpty) {
+                                  error = null;
+                                }
+                              });
+                            },
+                            decoration: const InputDecoration(
+                              labelText: 'Nome do tanque',
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          DropdownButtonFormField<String>(
+                            initialValue: tipoTanque.isEmpty
+                                ? null
+                                : tipoTanque,
+                            decoration: const InputDecoration(
+                              labelText: 'Tipo de tanque',
+                              border: OutlineInputBorder(),
+                            ),
+                            items: const <DropdownMenuItem<String>>[
+                              DropdownMenuItem<String>(
+                                value: 'Salão',
+                                child: Text('Salão'),
+                              ),
+                              DropdownMenuItem<String>(
+                                value: 'Compartimento',
+                                child: Text('Compartimento'),
+                              ),
+                            ],
+                            onChanged: fixedFieldsLockedForSelectedTank()
+                                ? null
+                                : (value) {
+                                    setModalState(() {
+                                      tipoTanque = value ?? '';
+                                      applyTipoTanqueLock();
+                                    });
+                                  },
+                          ),
+                          const SizedBox(height: 10),
+                          Row(
+                            children: <Widget>[
+                              Expanded(
+                                child: TextField(
+                                  controller: tanqueCompartimentosController,
+                                  keyboardType: TextInputType.number,
+                                  readOnly: fixedFieldsLockedForSelectedTank(),
+                                  onChanged: fixedFieldsLockedForSelectedTank()
+                                      ? null
+                                      : (_) {
+                                          setModalState(() {
+                                            applyTipoTanqueLock();
+                                          });
+                                        },
+                                  decoration: const InputDecoration(
+                                    labelText: 'Nº de compartimentos',
+                                    border: OutlineInputBorder(),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: TextField(
+                                  controller: tanqueGavetasController,
+                                  keyboardType: TextInputType.number,
+                                  readOnly:
+                                      fixedFieldsLockedForSelectedTank() ||
+                                      isSalao(),
+                                  decoration: const InputDecoration(
+                                    labelText: 'Gavetas',
+                                    border: OutlineInputBorder(),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          Row(
+                            children: <Widget>[
+                              Expanded(
+                                child: TextField(
+                                  controller: tanquePatamarController,
+                                  keyboardType: TextInputType.number,
+                                  readOnly:
+                                      fixedFieldsLockedForSelectedTank() ||
+                                      isSalao(),
+                                  decoration: const InputDecoration(
+                                    labelText: 'Patamares',
+                                    border: OutlineInputBorder(),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: TextField(
+                                  controller: tanqueVolumeController,
+                                  keyboardType:
+                                      const TextInputType.numberWithOptions(
+                                        decimal: true,
+                                      ),
+                                  readOnly: fixedFieldsLockedForSelectedTank(),
+                                  decoration: const InputDecoration(
+                                    labelText: 'Volume executado (m³)',
+                                    border: OutlineInputBorder(),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          subsectionLabel(
+                            'Serviço e método de execução',
+                            icon: Icons.build_circle_rounded,
+                          ),
+                          const SizedBox(height: 8),
+                          Builder(
+                            builder: (context) {
+                              final serviceOptions = ensureChoiceContains(
+                                serviceChoices,
+                                tanqueServicoController.text,
+                              );
+                              if (serviceOptions.isEmpty) {
+                                return TextField(
+                                  controller: tanqueServicoController,
+                                  readOnly: fixedFieldsLockedForSelectedTank(),
+                                  decoration: const InputDecoration(
+                                    labelText: 'Serviço executado',
+                                    border: OutlineInputBorder(),
+                                  ),
+                                );
+                              }
+                              return InkWell(
+                                borderRadius: BorderRadius.circular(6),
+                                onTap: fixedFieldsLockedForSelectedTank()
+                                    ? null
+                                    : () async {
+                                        final picked = await openChoicePicker(
+                                          title: 'Selecionar serviço executado',
+                                          options: serviceOptions,
+                                          initialValue:
+                                              tanqueServicoController.text,
+                                          allowManualValue: true,
+                                        );
+                                        if (picked == null) {
+                                          return;
+                                        }
+                                        setModalState(() {
+                                          setControllerText(
+                                            tanqueServicoController,
+                                            picked.value,
+                                          );
+                                        });
+                                      },
+                                child: IgnorePointer(
+                                  child: searchableChoiceDecorator(
+                                    labelText: 'Serviço executado',
+                                    hintText: 'Toque para buscar serviço',
+                                    selectedLabel:
+                                        tanqueServicoController.text
+                                            .trim()
+                                            .isEmpty
+                                        ? ''
+                                        : (findChoiceByValue(
+                                                tanqueServicoController.text,
+                                                serviceOptions,
+                                              )?.label ??
+                                              tanqueServicoController.text),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                          const SizedBox(height: 10),
+                          Builder(
+                            builder: (context) {
+                              final methodOptions = ensureChoiceContains(
+                                methodChoices,
+                                tanqueMetodoController.text,
+                              );
+                              if (methodOptions.isEmpty) {
+                                return TextField(
+                                  controller: tanqueMetodoController,
+                                  readOnly: fixedFieldsLockedForSelectedTank(),
+                                  decoration: const InputDecoration(
+                                    labelText: 'Método executado',
+                                    border: OutlineInputBorder(),
+                                  ),
+                                );
+                              }
+                              return InkWell(
+                                borderRadius: BorderRadius.circular(6),
+                                onTap: fixedFieldsLockedForSelectedTank()
+                                    ? null
+                                    : () async {
+                                        final picked = await openChoicePicker(
+                                          title: 'Selecionar método executado',
+                                          options: methodOptions,
+                                          initialValue:
+                                              tanqueMetodoController.text,
+                                          allowManualValue: true,
+                                        );
+                                        if (picked == null) {
+                                          return;
+                                        }
+                                        setModalState(() {
+                                          setControllerText(
+                                            tanqueMetodoController,
+                                            picked.value,
+                                          );
+                                        });
+                                      },
+                                child: IgnorePointer(
+                                  child: searchableChoiceDecorator(
+                                    labelText: 'Método executado',
+                                    hintText: 'Toque para buscar método',
+                                    selectedLabel:
+                                        tanqueMetodoController.text
+                                            .trim()
+                                            .isEmpty
+                                        ? ''
+                                        : (findChoiceByValue(
+                                                tanqueMetodoController.text,
+                                                methodOptions,
+                                              )?.label ??
+                                              tanqueMetodoController.text),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                          const SizedBox(height: 12),
+                          sectionTitle(
+                            'Espaço confinado',
+                            subtitle:
+                                'Preencha somente quando houver atividade em área confinada neste RDO.',
+                          ),
+                          const SizedBox(height: 8),
+                          DropdownButtonFormField<String>(
+                            initialValue: espacoConfinado.isEmpty
+                                ? null
+                                : espacoConfinado,
+                            decoration: const InputDecoration(
+                              labelText:
+                                  'Houve acesso em espaço confinado neste dia?',
+                              border: OutlineInputBorder(),
+                            ),
+                            items: const <DropdownMenuItem<String>>[
+                              DropdownMenuItem<String>(
+                                value: 'sim',
+                                child: Text('Sim'),
+                              ),
+                              DropdownMenuItem<String>(
+                                value: 'nao',
+                                child: Text('Não'),
+                              ),
+                            ],
+                            onChanged: (value) {
+                              setModalState(() {
+                                espacoConfinado = value ?? '';
+                                applyEcLock();
+                              });
+                            },
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: <Widget>[
+                              Expanded(
+                                child: TextField(
+                                  controller: operadoresController,
+                                  keyboardType: TextInputType.number,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Operadores simultâneos',
+                                    border: OutlineInputBorder(),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: TextField(
+                                  controller: efetivoConfinadoController,
+                                  keyboardType: TextInputType.number,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Efetivo no confinado (nº)',
+                                    border: OutlineInputBorder(),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: <Widget>[
+                              Expanded(
+                                child: TextField(
+                                  controller: h2sController,
+                                  keyboardType:
+                                      const TextInputType.numberWithOptions(
+                                        decimal: true,
+                                      ),
+                                  decoration: const InputDecoration(
+                                    labelText: 'H2S (ppm)',
+                                    border: OutlineInputBorder(),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: TextField(
+                                  controller: lelController,
+                                  keyboardType:
+                                      const TextInputType.numberWithOptions(
+                                        decimal: true,
+                                      ),
+                                  decoration: const InputDecoration(
+                                    labelText: 'LEL',
+                                    border: OutlineInputBorder(),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: <Widget>[
+                              Expanded(
+                                child: TextField(
+                                  controller: coController,
+                                  keyboardType:
+                                      const TextInputType.numberWithOptions(
+                                        decimal: true,
+                                      ),
+                                  decoration: const InputDecoration(
+                                    labelText: 'CO (ppm)',
+                                    border: OutlineInputBorder(),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: TextField(
+                                  controller: o2Controller,
+                                  keyboardType:
+                                      const TextInputType.numberWithOptions(
+                                        decimal: true,
+                                      ),
+                                  decoration: const InputDecoration(
+                                    labelText: 'O2 (%)',
+                                    border: OutlineInputBorder(),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          sectionTitle(
+                            'Entradas e saídas no confinado',
+                            subtitle:
+                                'Registre os intervalos de entrada/saída da equipe no espaço confinado.',
+                          ),
+                          const SizedBox(height: 6),
+                          IgnorePointer(
+                            ignoring: espacoConfinado == 'nao',
+                            child: Opacity(
+                              opacity: espacoConfinado == 'nao' ? 0.55 : 1,
+                              child: Column(
+                                children: List<Widget>.generate(6, (index) {
+                                  final row = ecTimes[index];
+                                  return Container(
+                                    margin: const EdgeInsets.only(bottom: 8),
+                                    padding: const EdgeInsets.all(10),
+                                    decoration: BoxDecoration(
+                                      border: Border.all(color: _kCardBorder),
+                                      borderRadius: BorderRadius.circular(10),
+                                      color: const Color(0xFFF9FAFB),
+                                    ),
+                                    child: Row(
+                                      children: <Widget>[
+                                        Expanded(
+                                          child: TextFormField(
+                                            key: ValueKey<String>(
+                                              'ec-entry-$index-${row.entrada == null ? 'empty' : _formatTimeOfDay(row.entrada!)}',
+                                            ),
+                                            initialValue: row.entrada == null
+                                                ? ''
+                                                : _formatTimeOfDay(
+                                                    row.entrada!,
+                                                  ),
+                                            keyboardType:
+                                                TextInputType.datetime,
+                                            decoration: InputDecoration(
+                                              labelText:
+                                                  'Entrada ${index + 1} (hora)',
+                                              hintText: '08:00',
+                                              border:
+                                                  const OutlineInputBorder(),
+                                              suffixIcon: IconButton(
+                                                icon: const Icon(
+                                                  Icons.schedule_rounded,
+                                                ),
+                                                onPressed: () async {
+                                                  final picked =
+                                                      await showTimePicker(
+                                                        context: modalContext,
+                                                        initialTime:
+                                                            row.entrada ??
+                                                            TimeOfDay.now(),
+                                                      );
+                                                  if (picked == null) {
+                                                    return;
+                                                  }
+                                                  setModalState(() {
+                                                    ecTimes[index] = row
+                                                        .copyWith(
+                                                          entrada: picked,
+                                                        );
+                                                  });
+                                                },
+                                              ),
+                                            ),
+                                            onChanged: (value) {
+                                              final parsed = parseTimeValue(
+                                                value,
+                                              );
+                                              setModalState(() {
+                                                if (value.trim().isEmpty) {
+                                                  ecTimes[index] = row.copyWith(
+                                                    entrada: null,
+                                                  );
+                                                } else if (parsed != null) {
+                                                  ecTimes[index] = row.copyWith(
+                                                    entrada: parsed,
+                                                  );
+                                                }
+                                              });
+                                            },
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: TextFormField(
+                                            key: ValueKey<String>(
+                                              'ec-exit-$index-${row.saida == null ? 'empty' : _formatTimeOfDay(row.saida!)}',
+                                            ),
+                                            initialValue: row.saida == null
+                                                ? ''
+                                                : _formatTimeOfDay(row.saida!),
+                                            keyboardType:
+                                                TextInputType.datetime,
+                                            decoration: InputDecoration(
+                                              labelText:
+                                                  'Saída ${index + 1} (hora)',
+                                              hintText: '12:00',
+                                              border:
+                                                  const OutlineInputBorder(),
+                                              suffixIcon: IconButton(
+                                                icon: const Icon(
+                                                  Icons.schedule_rounded,
+                                                ),
+                                                onPressed: () async {
+                                                  final picked =
+                                                      await showTimePicker(
+                                                        context: modalContext,
+                                                        initialTime:
+                                                            row.saida ??
+                                                            TimeOfDay.now(),
+                                                      );
+                                                  if (picked == null) {
+                                                    return;
+                                                  }
+                                                  setModalState(() {
+                                                    ecTimes[index] = row
+                                                        .copyWith(
+                                                          saida: picked,
+                                                        );
+                                                  });
+                                                },
+                                              ),
+                                            ),
+                                            onChanged: (value) {
+                                              final parsed = parseTimeValue(
+                                                value,
+                                              );
+                                              setModalState(() {
+                                                if (value.trim().isEmpty) {
+                                                  ecTimes[index] = row.copyWith(
+                                                    saida: null,
+                                                  );
+                                                } else if (parsed != null) {
+                                                  ecTimes[index] = row.copyWith(
+                                                    saida: parsed,
+                                                  );
+                                                }
+                                              });
+                                            },
+                                          ),
+                                        ),
+                                        IconButton(
+                                          tooltip: 'Limpar intervalo',
+                                          onPressed: () {
+                                            setModalState(() {
+                                              ecTimes[index] =
+                                                  const _EcTimeDraft();
+                                            });
+                                          },
+                                          icon: const Icon(
+                                            Icons.delete_outline_rounded,
+                                            size: 18,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          sectionTitle(
+                            'Dados operacionais',
+                            subtitle:
+                                'Preencha os campos diários. Os campos acumulados são calculados automaticamente.',
+                          ),
+                          const SizedBox(height: 8),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF9FAFB),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: _kCardBorder),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: <Widget>[
                                 Container(
                                   width: double.infinity,
                                   padding: const EdgeInsets.symmetric(
@@ -8551,901 +8514,1180 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                     vertical: 8,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFFF3F4F6),
+                                    color: _kGreenSoft,
                                     borderRadius: BorderRadius.circular(10),
-                                    border: Border.all(color: _kCardBorder),
+                                    border: Border.all(
+                                      color: AppTheme.supervisorLime.withValues(
+                                        alpha: .55,
+                                      ),
+                                    ),
                                   ),
                                   child: const Text(
-                                    'Previsoes deste tanque ja foram definidas no primeiro RDO e estao bloqueadas.',
+                                    'Organização dos dados: Previsão inicial, Produção diária (RDO atual) e Acumulado da operação.',
                                     style: TextStyle(
-                                      color: _kMutedInk,
-                                      fontSize: 11.8,
+                                      color: _kInk,
+                                      fontSize: 12.2,
                                       fontWeight: FontWeight.w700,
                                     ),
                                   ),
                                 ),
-                              ],
-                              const SizedBox(height: 12),
-                              subsectionLabel(
-                                '2) Produção diária (RDO atual)',
-                                icon: Icons.today_rounded,
-                              ),
-                              const SizedBox(height: 8),
-                              InkWell(
-                                borderRadius: BorderRadius.circular(6),
-                                onTap: () async {
-                                  final sentidoOptions = ensureChoiceContains(
-                                    localSentidoChoices,
-                                    sentidoLimpeza,
-                                  );
-                                  final picked = await openChoicePicker(
-                                    title: 'Selecionar sentido da limpeza',
-                                    options: sentidoOptions,
-                                    initialValue: sentidoLimpeza,
-                                    allowManualValue: true,
-                                  );
-                                  if (picked == null) {
-                                    return;
-                                  }
-                                  setModalState(() {
-                                    sentidoLimpeza = picked.value;
-                                  });
-                                },
-                                child: IgnorePointer(
-                                  child: searchableChoiceDecorator(
-                                    labelText: 'Sentido da limpeza (dia)',
-                                    hintText: 'Toque para buscar sentido',
-                                    selectedLabel: sentidoLimpeza.trim().isEmpty
-                                        ? ''
-                                        : (findChoiceByValue(
-                                                sentidoLimpeza,
-                                                ensureChoiceContains(
-                                                  localSentidoChoices,
-                                                  sentidoLimpeza,
-                                                ),
-                                              )?.label ??
-                                              sentidoLimpeza),
-                                  ),
+                                const SizedBox(height: 10),
+                                subsectionLabel(
+                                  '1) Previsão inicial',
+                                  icon: Icons.event_note_rounded,
                                 ),
-                              ),
-                              const SizedBox(height: 8),
-                              Row(
-                                children: <Widget>[
-                                  Expanded(
-                                    child: TextField(
-                                      controller: tempoBombaController,
-                                      keyboardType:
-                                          const TextInputType.numberWithOptions(
-                                            decimal: true,
-                                          ),
-                                      onChanged: (_) {
-                                        setModalState(recomputeOperational);
-                                      },
-                                      decoration: const InputDecoration(
-                                        labelText: 'Tempo de bomba diário (h)',
-                                        border: OutlineInputBorder(),
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: readonlyField(
-                                      controller: bombeioController,
-                                      label: 'Bombeio diário (auto)',
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: readonlyField(
-                                      controller: totalLiquidoController,
-                                      label: 'Resíduo líquido diário (auto)',
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              Row(
-                                children: <Widget>[
-                                  Expanded(
-                                    child: TextField(
-                                      controller: ensacamentoDiaController,
-                                      keyboardType: TextInputType.number,
-                                      onChanged: (_) {
-                                        setModalState(recomputeOperational);
-                                      },
-                                      decoration: const InputDecoration(
-                                        labelText: 'Ensacamento diário',
-                                        border: OutlineInputBorder(),
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: TextField(
-                                      controller: icamentoDiaController,
-                                      keyboardType: TextInputType.number,
-                                      onChanged: (_) {
-                                        setModalState(recomputeOperational);
-                                      },
-                                      decoration: const InputDecoration(
-                                        labelText: 'Içamento diário',
-                                        border: OutlineInputBorder(),
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: TextField(
-                                      controller: cambagemDiaController,
-                                      keyboardType: TextInputType.number,
-                                      onChanged: (_) {
-                                        setModalState(recomputeOperational);
-                                      },
-                                      decoration: const InputDecoration(
-                                        labelText: 'Cambagem diária',
-                                        border: OutlineInputBorder(),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              Row(
-                                children: <Widget>[
-                                  Expanded(
-                                    child: TextField(
-                                      controller: tamboresDiaController,
-                                      keyboardType: TextInputType.number,
-                                      onChanged: (_) {
-                                        setModalState(recomputeOperational);
-                                      },
-                                      decoration: const InputDecoration(
-                                        labelText: 'Tambores diários',
-                                        border: OutlineInputBorder(),
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: readonlyField(
-                                      controller: residuosSolidosController,
-                                      label: 'Resíduo sólido diário (auto)',
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: readonlyField(
-                                      controller: residuosTotaisController,
-                                      label: 'Resíduo total diário (auto)',
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 12),
-                              subsectionLabel(
-                                '3) Acumulado da operação',
-                                icon: Icons.summarize_rounded,
-                              ),
-                              const SizedBox(height: 8),
-                              Row(
-                                children: <Widget>[
-                                  Expanded(
-                                    child: readonlyField(
-                                      controller: ensacamentoAcuController,
-                                      label: 'Ensacamento acumulado',
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: readonlyField(
-                                      controller: icamentoAcuController,
-                                      label: 'Içamento acumulado',
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: readonlyField(
-                                      controller: cambagemAcuController,
-                                      label: 'Cambagem acumulada',
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              Row(
-                                children: <Widget>[
-                                  Expanded(
-                                    child: readonlyField(
-                                      controller: tamboresAcuController,
-                                      label: 'Tambores acumulados',
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: readonlyField(
-                                      controller: totalLiquidoAcuController,
-                                      label: 'Resíduo líquido acumulado',
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: readonlyField(
-                                      controller: residuosSolidosAcuController,
-                                      label: 'Resíduo sólido acumulado',
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        Builder(
-                          builder: (context) {
-                            final metrics = compartmentMetricsSnapshot();
-
-                            Widget metaPill(
-                              String label, {
-                              Color background = const Color(0xFFFFFFFF),
-                              Color foreground = _kMutedInk,
-                            }) {
-                              return Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 5,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: background,
-                                  borderRadius: BorderRadius.circular(999),
-                                  border: Border.all(color: _kCardBorder),
-                                ),
-                                child: Text(
-                                  label,
-                                  style: TextStyle(
-                                    color: foreground,
-                                    fontSize: 11.4,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              );
-                            }
-
-                            Widget phaseCard({
-                              required int comp,
-                              required String title,
-                              required bool fina,
-                            }) {
-                              final snapshot = compartmentPhaseSnapshot(
-                                comp,
-                                fina: fina,
-                              );
-                              final otherSnapshot = compartmentPhaseSnapshot(
-                                comp,
-                                fina: !fina,
-                              );
-                              final selected = selectedCompartimentos.contains(
-                                comp,
-                              );
-                              final enabled = selected && !snapshot.blocked;
-                              final maxFinalValue =
-                                  ((snapshot.previous + snapshot.remaining)
-                                              .clamp(snapshot.previous, 100)
-                                          as num)
-                                      .toDouble();
-                              final currentFinalValue =
-                                  (snapshot.finalValue.toDouble().clamp(
-                                            snapshot.previous.toDouble(),
-                                            maxFinalValue,
-                                          )
-                                          as num)
-                                      .toDouble();
-                              final divisions =
-                                  maxFinalValue > snapshot.previous.toDouble()
-                                  ? (maxFinalValue -
-                                            snapshot.previous.toDouble())
-                                        .round()
-                                  : null;
-                              final stateLabel = snapshot.blocked
-                                  ? 'Concluída'
-                                  : (!selected ? 'Selecionar' : 'Disponível');
-                              final stateBg = snapshot.blocked
-                                  ? const Color(0xFFDFF7E8)
-                                  : (!selected
-                                        ? const Color(0xFFFFF4D6)
-                                        : const Color(0xFFE2F0FF));
-                              final stateFg = snapshot.blocked
-                                  ? const Color(0xFF166534)
-                                  : (!selected
-                                        ? const Color(0xFF8A6100)
-                                        : const Color(0xFF1D4ED8));
-                              var helpText = '';
-                              if (snapshot.blocked) {
-                                helpText = otherSnapshot.blocked
-                                    ? 'Frente concluída neste compartimento.'
-                                    : (fina
-                                          ? 'Limpeza fina concluída.'
-                                          : 'Mecanizada/manual concluída.');
-                              } else if (!selected) {
-                                helpText =
-                                    'Selecione o compartimento acima para lançar avanço hoje.';
-                              } else if (otherSnapshot.blocked) {
-                                helpText = 'A outra frente já está concluída.';
-                              }
-
-                              return Container(
-                                width: double.infinity,
-                                padding: const EdgeInsets.all(10),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFF8FAFC),
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: _kCardBorder),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                const SizedBox(height: 8),
+                                Row(
                                   children: <Widget>[
-                                    Row(
-                                      children: <Widget>[
-                                        Expanded(
-                                          child: Text(
-                                            title,
-                                            style: const TextStyle(
-                                              color: _kInk,
-                                              fontSize: 12.4,
-                                              fontWeight: FontWeight.w800,
-                                            ),
-                                          ),
-                                        ),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 4,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: stateBg,
-                                            borderRadius: BorderRadius.circular(
-                                              999,
-                                            ),
-                                          ),
-                                          child: Text(
-                                            stateLabel,
-                                            style: TextStyle(
-                                              color: stateFg,
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.w800,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 6),
-                                    SliderTheme(
-                                      data: SliderTheme.of(context).copyWith(
-                                        trackHeight: 12,
-                                        inactiveTrackColor: const Color(
-                                          0xFFDCE3EA,
-                                        ),
-                                        activeTrackColor: const Color(
-                                          0xFF3BA55C,
-                                        ),
-                                        thumbColor: const Color(0xFF0A5A2F),
-                                        overlayShape:
-                                            SliderComponentShape.noOverlay,
-                                      ),
-                                      child: Slider(
-                                        min: snapshot.previous.toDouble(),
-                                        max: maxFinalValue,
-                                        divisions: divisions,
-                                        value: currentFinalValue,
-                                        onChanged: enabled
-                                            ? (value) {
-                                                setModalState(() {
-                                                  final accepted =
-                                                      (((value.round() -
-                                                                      snapshot
-                                                                          .previous)
-                                                                  .clamp(
-                                                                    0,
-                                                                    snapshot
-                                                                        .remaining,
-                                                                  ))
-                                                              as num)
-                                                          .toInt();
-                                                  final current =
-                                                      compartmentProgress[comp] ??
-                                                      const _CompartmentProgressDraft();
-                                                  compartmentProgress[comp] =
-                                                      fina
-                                                      ? current.copyWith(
-                                                          fina: accepted,
-                                                        )
-                                                      : current.copyWith(
-                                                          mecanizada: accepted,
-                                                        );
-                                                  recomputeCompartimentos();
-                                                });
-                                              }
-                                            : null,
-                                      ),
-                                    ),
-                                    Center(
-                                      child: Text(
-                                        '${snapshot.finalValue}%',
-                                        style: const TextStyle(
-                                          color: _kInk,
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w800,
+                                    Expanded(
+                                      child: TextField(
+                                        controller: ensacamentoPrevController,
+                                        keyboardType: TextInputType.number,
+                                        readOnly: predictionsLocked,
+                                        decoration: InputDecoration(
+                                          labelText: 'Ensacamento previsto',
+                                          border: const OutlineInputBorder(),
+                                          filled: predictionsLocked,
+                                          fillColor: predictionsLocked
+                                              ? const Color(0xFFF3F4F6)
+                                              : null,
                                         ),
                                       ),
                                     ),
-                                    const SizedBox(height: 6),
-                                    Wrap(
-                                      spacing: 6,
-                                      runSpacing: 6,
-                                      children: <Widget>[
-                                        metaPill(
-                                          'Acumulado: ${snapshot.finalValue}%',
-                                        ),
-                                        metaPill(
-                                          'Disponível hoje: ${snapshot.remaining}%',
-                                        ),
-                                      ],
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: readonlyField(
+                                        controller: icamentoPrevController,
+                                        label: 'Içamento previsto',
+                                      ),
                                     ),
-                                    if (helpText.isNotEmpty) ...<Widget>[
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        helpText,
-                                        style: const TextStyle(
-                                          color: _kMutedInk,
-                                          fontSize: 11.6,
-                                          fontWeight: FontWeight.w600,
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: TextField(
+                                        controller: cambagemPrevController,
+                                        keyboardType: TextInputType.number,
+                                        readOnly: predictionsLocked,
+                                        decoration: InputDecoration(
+                                          labelText: 'Cambagem prevista',
+                                          border: const OutlineInputBorder(),
+                                          filled: predictionsLocked,
+                                          fillColor: predictionsLocked
+                                              ? const Color(0xFFF3F4F6)
+                                              : null,
                                         ),
                                       ),
-                                    ],
+                                    ),
                                   ],
                                 ),
-                              );
-                            }
-
-                            return Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: <Widget>[
-                                sectionTitle(
-                                  'Avanço por compartimento',
-                                  subtitle:
-                                      'Selecione os compartimentos trabalhados no dia. A barra mostra o acumulado do compartimento; o envio continua sendo apenas o avanço de hoje.',
-                                ),
-                                const SizedBox(height: 6),
-                                if (totalCompartimentos <= 0)
-                                  const Text(
-                                    'Informe o número de compartimentos para liberar os controles de avanço.',
-                                    style: TextStyle(
-                                      color: _kMutedInk,
-                                      fontSize: 12.5,
-                                      fontWeight: FontWeight.w600,
+                                if (predictionsLocked) ...<Widget>[
+                                  const SizedBox(height: 8),
+                                  Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 8,
                                     ),
-                                  )
-                                else ...<Widget>[
-                                  Wrap(
-                                    spacing: 8,
-                                    runSpacing: 8,
-                                    children: List<Widget>.generate(
-                                      totalCompartimentos,
-                                      (idx) {
-                                        final comp = idx + 1;
-                                        final selected = selectedCompartimentos
-                                            .contains(comp);
-                                        final blocked = compartmentCompleted(
-                                          comp,
-                                        );
-                                        final availability =
-                                            compartmentAvailabilityLabel(comp);
-                                        final bgColor = blocked
-                                            ? const Color(0xFFDFF7E8)
-                                            : (availability == 'Fina'
-                                                  ? const Color(0xFFFFF4D6)
-                                                  : availability == 'Mec.'
-                                                  ? const Color(0xFFE2F0FF)
-                                                  : selected
-                                                  ? const Color(0xFFE8FBF0)
-                                                  : const Color(0xFFF8FAFC));
-                                        final borderColor = blocked
-                                            ? const Color(0xFFBBF7D0)
-                                            : (availability == 'Fina'
-                                                  ? const Color(0xFFFED7AA)
-                                                  : availability == 'Mec.'
-                                                  ? const Color(0xFFBFDBFE)
-                                                  : selected
-                                                  ? const Color(0xFFB7E4C7)
-                                                  : _kCardBorder);
-                                        final fgColor = blocked
-                                            ? const Color(0xFF166534)
-                                            : (availability == 'Fina'
-                                                  ? const Color(0xFF8A6100)
-                                                  : availability == 'Mec.'
-                                                  ? const Color(0xFF1D4ED8)
-                                                  : _kInk);
-                                        return InkWell(
-                                          onTap: blocked
-                                              ? null
-                                              : () {
-                                                  setModalState(() {
-                                                    if (selected) {
-                                                      selectedCompartimentos
-                                                          .remove(comp);
-                                                      compartmentProgress[comp] =
-                                                          const _CompartmentProgressDraft();
-                                                    } else {
-                                                      selectedCompartimentos
-                                                          .add(comp);
-                                                      compartmentProgress
-                                                          .putIfAbsent(
-                                                            comp,
-                                                            () =>
-                                                                const _CompartmentProgressDraft(),
-                                                          );
-                                                    }
-                                                    recomputeCompartimentos();
-                                                  });
-                                                },
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                          child: AnimatedContainer(
-                                            duration: const Duration(
-                                              milliseconds: 160,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF3F4F6),
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(color: _kCardBorder),
+                                    ),
+                                    child: const Text(
+                                      'Previsoes deste tanque ja foram definidas no primeiro RDO e estao bloqueadas.',
+                                      style: TextStyle(
+                                        color: _kMutedInk,
+                                        fontSize: 11.8,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                                const SizedBox(height: 12),
+                                subsectionLabel(
+                                  '2) Produção diária (RDO atual)',
+                                  icon: Icons.today_rounded,
+                                ),
+                                const SizedBox(height: 8),
+                                InkWell(
+                                  borderRadius: BorderRadius.circular(6),
+                                  onTap: () async {
+                                    final sentidoOptions = ensureChoiceContains(
+                                      localSentidoChoices,
+                                      sentidoLimpeza,
+                                    );
+                                    final picked = await openChoicePicker(
+                                      title: 'Selecionar sentido da limpeza',
+                                      options: sentidoOptions,
+                                      initialValue: sentidoLimpeza,
+                                      allowManualValue: true,
+                                    );
+                                    if (picked == null) {
+                                      return;
+                                    }
+                                    setModalState(() {
+                                      sentidoLimpeza = picked.value;
+                                    });
+                                  },
+                                  child: IgnorePointer(
+                                    child: searchableChoiceDecorator(
+                                      labelText: 'Sentido da limpeza (dia)',
+                                      hintText: 'Toque para buscar sentido',
+                                      selectedLabel:
+                                          sentidoLimpeza.trim().isEmpty
+                                          ? ''
+                                          : (findChoiceByValue(
+                                                  sentidoLimpeza,
+                                                  ensureChoiceContains(
+                                                    localSentidoChoices,
+                                                    sentidoLimpeza,
+                                                  ),
+                                                )?.label ??
+                                                sentidoLimpeza),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Row(
+                                  children: <Widget>[
+                                    Expanded(
+                                      child: TextField(
+                                        controller: tempoBombaController,
+                                        keyboardType:
+                                            const TextInputType.numberWithOptions(
+                                              decimal: true,
                                             ),
-                                            width: 74,
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 8,
-                                              vertical: 8,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: bgColor,
-                                              borderRadius:
-                                                  BorderRadius.circular(12),
-                                              border: Border.all(
-                                                color: borderColor,
+                                        onChanged: (_) {
+                                          setModalState(recomputeOperational);
+                                        },
+                                        decoration: const InputDecoration(
+                                          labelText:
+                                              'Tempo de bomba diário (h)',
+                                          border: OutlineInputBorder(),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: readonlyField(
+                                        controller: bombeioController,
+                                        label: 'Bombeio diário (auto)',
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: readonlyField(
+                                        controller: totalLiquidoController,
+                                        label: 'Resíduo líquido diário (auto)',
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Row(
+                                  children: <Widget>[
+                                    Expanded(
+                                      child: TextField(
+                                        controller: ensacamentoDiaController,
+                                        keyboardType: TextInputType.number,
+                                        onChanged: (_) {
+                                          setModalState(recomputeOperational);
+                                        },
+                                        decoration: const InputDecoration(
+                                          labelText: 'Ensacamento diário',
+                                          border: OutlineInputBorder(),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: TextField(
+                                        controller: icamentoDiaController,
+                                        keyboardType: TextInputType.number,
+                                        onChanged: (_) {
+                                          setModalState(recomputeOperational);
+                                        },
+                                        decoration: const InputDecoration(
+                                          labelText: 'Içamento diário',
+                                          border: OutlineInputBorder(),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: TextField(
+                                        controller: cambagemDiaController,
+                                        keyboardType: TextInputType.number,
+                                        onChanged: (_) {
+                                          setModalState(recomputeOperational);
+                                        },
+                                        decoration: const InputDecoration(
+                                          labelText: 'Cambagem diária',
+                                          border: OutlineInputBorder(),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Row(
+                                  children: <Widget>[
+                                    Expanded(
+                                      child: TextField(
+                                        controller: tamboresDiaController,
+                                        keyboardType: TextInputType.number,
+                                        onChanged: (_) {
+                                          setModalState(recomputeOperational);
+                                        },
+                                        decoration: const InputDecoration(
+                                          labelText: 'Tambores diários',
+                                          border: OutlineInputBorder(),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: readonlyField(
+                                        controller: residuosSolidosController,
+                                        label: 'Resíduo sólido diário (auto)',
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: readonlyField(
+                                        controller: residuosTotaisController,
+                                        label: 'Resíduo total diário (auto)',
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                subsectionLabel(
+                                  '3) Acumulado da operação',
+                                  icon: Icons.summarize_rounded,
+                                ),
+                                const SizedBox(height: 8),
+                                Row(
+                                  children: <Widget>[
+                                    Expanded(
+                                      child: readonlyField(
+                                        controller: ensacamentoAcuController,
+                                        label: 'Ensacamento acumulado',
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: readonlyField(
+                                        controller: icamentoAcuController,
+                                        label: 'Içamento acumulado',
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: readonlyField(
+                                        controller: cambagemAcuController,
+                                        label: 'Cambagem acumulada',
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Row(
+                                  children: <Widget>[
+                                    Expanded(
+                                      child: readonlyField(
+                                        controller: tamboresAcuController,
+                                        label: 'Tambores acumulados',
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: readonlyField(
+                                        controller: totalLiquidoAcuController,
+                                        label: 'Resíduo líquido acumulado',
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: readonlyField(
+                                        controller:
+                                            residuosSolidosAcuController,
+                                        label: 'Resíduo sólido acumulado',
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Builder(
+                            builder: (context) {
+                              final metrics = compartmentMetricsSnapshot();
+
+                              Widget metaPill(
+                                String label, {
+                                Color background = const Color(0xFFFFFFFF),
+                                Color foreground = _kMutedInk,
+                              }) {
+                                return Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 5,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: background,
+                                    borderRadius: BorderRadius.circular(999),
+                                    border: Border.all(color: _kCardBorder),
+                                  ),
+                                  child: Text(
+                                    label,
+                                    style: TextStyle(
+                                      color: foreground,
+                                      fontSize: 11.4,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                );
+                              }
+
+                              Widget phaseCard({
+                                required int comp,
+                                required String title,
+                                required bool fina,
+                              }) {
+                                final snapshot = compartmentPhaseSnapshot(
+                                  comp,
+                                  fina: fina,
+                                );
+                                final otherSnapshot = compartmentPhaseSnapshot(
+                                  comp,
+                                  fina: !fina,
+                                );
+                                final selected = selectedCompartimentos
+                                    .contains(comp);
+                                final enabled = selected && !snapshot.blocked;
+                                final maxFinalValue =
+                                    ((snapshot.previous + snapshot.remaining)
+                                                .clamp(snapshot.previous, 100)
+                                            as num)
+                                        .toDouble();
+                                final currentFinalValue =
+                                    (snapshot.finalValue.toDouble().clamp(
+                                              snapshot.previous.toDouble(),
+                                              maxFinalValue,
+                                            )
+                                            as num)
+                                        .toDouble();
+                                final divisions =
+                                    maxFinalValue > snapshot.previous.toDouble()
+                                    ? (maxFinalValue -
+                                              snapshot.previous.toDouble())
+                                          .round()
+                                    : null;
+                                final stateLabel = snapshot.blocked
+                                    ? 'Concluída'
+                                    : (!selected ? 'Selecionar' : 'Disponível');
+                                final stateBg = snapshot.blocked
+                                    ? const Color(0xFFDFF7E8)
+                                    : (!selected
+                                          ? const Color(0xFFFFF4D6)
+                                          : const Color(0xFFE2F0FF));
+                                final stateFg = snapshot.blocked
+                                    ? const Color(0xFF166534)
+                                    : (!selected
+                                          ? const Color(0xFF8A6100)
+                                          : const Color(0xFF1D4ED8));
+                                var helpText = '';
+                                if (snapshot.blocked) {
+                                  helpText = otherSnapshot.blocked
+                                      ? 'Frente concluída neste compartimento.'
+                                      : (fina
+                                            ? 'Limpeza fina concluída.'
+                                            : 'Mecanizada/manual concluída.');
+                                } else if (!selected) {
+                                  helpText =
+                                      'Selecione o compartimento acima para lançar avanço hoje.';
+                                } else if (otherSnapshot.blocked) {
+                                  helpText =
+                                      'A outra frente já está concluída.';
+                                }
+
+                                return Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF8FAFC),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: _kCardBorder),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: <Widget>[
+                                      Row(
+                                        children: <Widget>[
+                                          Expanded(
+                                            child: Text(
+                                              title,
+                                              style: const TextStyle(
+                                                color: _kInk,
+                                                fontSize: 12.4,
+                                                fontWeight: FontWeight.w800,
                                               ),
                                             ),
-                                            child: Stack(
-                                              clipBehavior: Clip.none,
-                                              children: <Widget>[
-                                                Column(
-                                                  mainAxisSize:
-                                                      MainAxisSize.min,
-                                                  children: <Widget>[
-                                                    Text(
-                                                      '$comp',
-                                                      style: TextStyle(
-                                                        color: fgColor,
-                                                        fontSize: 14,
-                                                        fontWeight:
-                                                            FontWeight.w800,
-                                                      ),
-                                                    ),
-                                                    if (availability !=
-                                                        null) ...<Widget>[
-                                                      const SizedBox(height: 3),
+                                          ),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 8,
+                                              vertical: 4,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: stateBg,
+                                              borderRadius:
+                                                  BorderRadius.circular(999),
+                                            ),
+                                            child: Text(
+                                              stateLabel,
+                                              style: TextStyle(
+                                                color: stateFg,
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w800,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 6),
+                                      SliderTheme(
+                                        data: SliderTheme.of(context).copyWith(
+                                          trackHeight: 12,
+                                          inactiveTrackColor: const Color(
+                                            0xFFDCE3EA,
+                                          ),
+                                          activeTrackColor: const Color(
+                                            0xFF3BA55C,
+                                          ),
+                                          thumbColor: const Color(0xFF0A5A2F),
+                                          overlayShape:
+                                              SliderComponentShape.noOverlay,
+                                        ),
+                                        child: Slider(
+                                          min: snapshot.previous.toDouble(),
+                                          max: maxFinalValue,
+                                          divisions: divisions,
+                                          value: currentFinalValue,
+                                          onChanged: enabled
+                                              ? (value) {
+                                                  setModalState(() {
+                                                    final accepted =
+                                                        (((value.round() -
+                                                                        snapshot
+                                                                            .previous)
+                                                                    .clamp(
+                                                                      0,
+                                                                      snapshot
+                                                                          .remaining,
+                                                                    ))
+                                                                as num)
+                                                            .toInt();
+                                                    final current =
+                                                        compartmentProgress[comp] ??
+                                                        const _CompartmentProgressDraft();
+                                                    compartmentProgress[comp] =
+                                                        fina
+                                                        ? current.copyWith(
+                                                            fina: accepted,
+                                                          )
+                                                        : current.copyWith(
+                                                            mecanizada:
+                                                                accepted,
+                                                          );
+                                                    recomputeCompartimentos();
+                                                  });
+                                                }
+                                              : null,
+                                        ),
+                                      ),
+                                      Center(
+                                        child: Text(
+                                          '${snapshot.finalValue}%',
+                                          style: const TextStyle(
+                                            color: _kInk,
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w800,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Wrap(
+                                        spacing: 6,
+                                        runSpacing: 6,
+                                        children: <Widget>[
+                                          metaPill(
+                                            'Acumulado: ${snapshot.finalValue}%',
+                                          ),
+                                          metaPill(
+                                            'Disponível hoje: ${snapshot.remaining}%',
+                                          ),
+                                        ],
+                                      ),
+                                      if (helpText.isNotEmpty) ...<Widget>[
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          helpText,
+                                          style: const TextStyle(
+                                            color: _kMutedInk,
+                                            fontSize: 11.6,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                );
+                              }
+
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: <Widget>[
+                                  sectionTitle(
+                                    'Avanço por compartimento',
+                                    subtitle:
+                                        'Selecione os compartimentos trabalhados no dia. A barra mostra o acumulado do compartimento; o envio continua sendo apenas o avanço de hoje.',
+                                  ),
+                                  const SizedBox(height: 6),
+                                  if (totalCompartimentos <= 0)
+                                    const Text(
+                                      'Informe o número de compartimentos para liberar os controles de avanço.',
+                                      style: TextStyle(
+                                        color: _kMutedInk,
+                                        fontSize: 12.5,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    )
+                                  else ...<Widget>[
+                                    Wrap(
+                                      spacing: 8,
+                                      runSpacing: 8,
+                                      children: List<Widget>.generate(
+                                        totalCompartimentos,
+                                        (idx) {
+                                          final comp = idx + 1;
+                                          final selected =
+                                              selectedCompartimentos.contains(
+                                                comp,
+                                              );
+                                          final blocked = compartmentCompleted(
+                                            comp,
+                                          );
+                                          final availability =
+                                              compartmentAvailabilityLabel(
+                                                comp,
+                                              );
+                                          final bgColor = blocked
+                                              ? const Color(0xFFDFF7E8)
+                                              : (availability == 'Fina'
+                                                    ? const Color(0xFFFFF4D6)
+                                                    : availability == 'Mec.'
+                                                    ? const Color(0xFFE2F0FF)
+                                                    : selected
+                                                    ? const Color(0xFFE8FBF0)
+                                                    : const Color(0xFFF8FAFC));
+                                          final borderColor = blocked
+                                              ? const Color(0xFFBBF7D0)
+                                              : (availability == 'Fina'
+                                                    ? const Color(0xFFFED7AA)
+                                                    : availability == 'Mec.'
+                                                    ? const Color(0xFFBFDBFE)
+                                                    : selected
+                                                    ? const Color(0xFFB7E4C7)
+                                                    : _kCardBorder);
+                                          final fgColor = blocked
+                                              ? const Color(0xFF166534)
+                                              : (availability == 'Fina'
+                                                    ? const Color(0xFF8A6100)
+                                                    : availability == 'Mec.'
+                                                    ? const Color(0xFF1D4ED8)
+                                                    : _kInk);
+                                          return InkWell(
+                                            onTap: blocked
+                                                ? null
+                                                : () {
+                                                    setModalState(() {
+                                                      if (selected) {
+                                                        selectedCompartimentos
+                                                            .remove(comp);
+                                                        compartmentProgress[comp] =
+                                                            const _CompartmentProgressDraft();
+                                                      } else {
+                                                        selectedCompartimentos
+                                                            .add(comp);
+                                                        compartmentProgress
+                                                            .putIfAbsent(
+                                                              comp,
+                                                              () =>
+                                                                  const _CompartmentProgressDraft(),
+                                                            );
+                                                      }
+                                                      recomputeCompartimentos();
+                                                    });
+                                                  },
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                            child: AnimatedContainer(
+                                              duration: const Duration(
+                                                milliseconds: 160,
+                                              ),
+                                              width: 74,
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 8,
+                                                    vertical: 8,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: bgColor,
+                                                borderRadius:
+                                                    BorderRadius.circular(12),
+                                                border: Border.all(
+                                                  color: borderColor,
+                                                ),
+                                              ),
+                                              child: Stack(
+                                                clipBehavior: Clip.none,
+                                                children: <Widget>[
+                                                  Column(
+                                                    mainAxisSize:
+                                                        MainAxisSize.min,
+                                                    children: <Widget>[
                                                       Text(
-                                                        availability,
+                                                        '$comp',
                                                         style: TextStyle(
                                                           color: fgColor,
-                                                          fontSize: 9.8,
+                                                          fontSize: 14,
                                                           fontWeight:
                                                               FontWeight.w800,
                                                         ),
                                                       ),
+                                                      if (availability !=
+                                                          null) ...<Widget>[
+                                                        const SizedBox(
+                                                          height: 3,
+                                                        ),
+                                                        Text(
+                                                          availability,
+                                                          style: TextStyle(
+                                                            color: fgColor,
+                                                            fontSize: 9.8,
+                                                            fontWeight:
+                                                                FontWeight.w800,
+                                                          ),
+                                                        ),
+                                                      ],
                                                     ],
-                                                  ],
-                                                ),
-                                                if (selected)
-                                                  Positioned(
-                                                    top: -2,
-                                                    right: -2,
-                                                    child: Container(
-                                                      width: 18,
-                                                      height: 18,
-                                                      decoration: BoxDecoration(
-                                                        color: Colors.white,
-                                                        borderRadius:
-                                                            BorderRadius.circular(
-                                                              999,
-                                                            ),
-                                                        border: Border.all(
-                                                          color: borderColor,
+                                                  ),
+                                                  if (selected)
+                                                    Positioned(
+                                                      top: -2,
+                                                      right: -2,
+                                                      child: Container(
+                                                        width: 18,
+                                                        height: 18,
+                                                        decoration: BoxDecoration(
+                                                          color: Colors.white,
+                                                          borderRadius:
+                                                              BorderRadius.circular(
+                                                                999,
+                                                              ),
+                                                          border: Border.all(
+                                                            color: borderColor,
+                                                          ),
                                                         ),
-                                                      ),
-                                                      child: const Icon(
-                                                        Icons.check_rounded,
-                                                        size: 12,
-                                                        color: Color(
-                                                          0xFF0A5A2F,
+                                                        child: const Icon(
+                                                          Icons.check_rounded,
+                                                          size: 12,
+                                                          color: Color(
+                                                            0xFF0A5A2F,
+                                                          ),
                                                         ),
                                                       ),
                                                     ),
-                                                  ),
-                                              ],
+                                                ],
+                                              ),
                                             ),
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    'Diário mec.: ${formatDecimal(metrics.dailyM, precision: 2)}%  •  Cumulativo mec.: ${formatDecimal(metrics.cumulativeM, precision: 2)}%\nDiário fina: ${formatDecimal(metrics.dailyF, precision: 2)}%  •  Cumulativo fina: ${formatDecimal(metrics.cumulativeF, precision: 2)}%',
-                                    style: const TextStyle(
-                                      color: _kMutedInk,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                  if (sortedSelectedCompartimentos
-                                      .isNotEmpty) ...<Widget>[
-                                    const SizedBox(height: 8),
-                                    ...sortedSelectedCompartimentos.map((comp) {
-                                      final mecanizada =
-                                          compartmentPhaseSnapshot(
-                                            comp,
-                                            fina: false,
                                           );
-                                      final fina = compartmentPhaseSnapshot(
-                                        comp,
-                                        fina: true,
-                                      );
-                                      final rowStatus =
-                                          mecanizada.blocked && fina.blocked
-                                          ? 'Compartimento concluído'
-                                          : (mecanizada.blocked
-                                                ? 'Mecanizada concluída; avance só fina'
-                                                : (fina.blocked
-                                                      ? 'Fina concluída; avance só mecanizada'
-                                                      : 'Lançamento ativo'));
-                                      final rowStatusColor =
-                                          mecanizada.blocked && fina.blocked
-                                          ? const Color(0xFF166534)
-                                          : (mecanizada.blocked || fina.blocked
-                                                ? const Color(0xFF8A6100)
-                                                : const Color(0xFF1D4ED8));
-                                      final rowStatusBg =
-                                          mecanizada.blocked && fina.blocked
-                                          ? const Color(0xFFDFF7E8)
-                                          : (mecanizada.blocked || fina.blocked
-                                                ? const Color(0xFFFFF4D6)
-                                                : const Color(0xFFE2F0FF));
-                                      return Container(
-                                        margin: const EdgeInsets.only(
-                                          bottom: 10,
-                                        ),
-                                        padding: const EdgeInsets.all(10),
-                                        decoration: BoxDecoration(
-                                          border: Border.all(
-                                            color: _kCardBorder,
-                                          ),
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                          color: Colors.white,
-                                        ),
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: <Widget>[
-                                            Row(
-                                              children: <Widget>[
-                                                Expanded(
-                                                  child: Text(
-                                                    'Compartimento $comp',
-                                                    style: const TextStyle(
-                                                      color: _kInk,
-                                                      fontSize: 12.8,
-                                                      fontWeight:
-                                                          FontWeight.w800,
-                                                    ),
-                                                  ),
-                                                ),
-                                                Container(
-                                                  padding:
-                                                      const EdgeInsets.symmetric(
-                                                        horizontal: 8,
-                                                        vertical: 4,
-                                                      ),
-                                                  decoration: BoxDecoration(
-                                                    color: rowStatusBg,
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          999,
-                                                        ),
-                                                  ),
-                                                  child: Text(
-                                                    rowStatus,
-                                                    style: TextStyle(
-                                                      color: rowStatusColor,
-                                                      fontSize: 10.8,
-                                                      fontWeight:
-                                                          FontWeight.w800,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                            const SizedBox(height: 8),
-                                            phaseCard(
-                                              comp: comp,
-                                              title:
-                                                  'Mecanizada / Manual / Robotizada',
-                                              fina: false,
-                                            ),
-                                            const SizedBox(height: 8),
-                                            phaseCard(
-                                              comp: comp,
-                                              title: 'Limpeza fina',
-                                              fina: true,
-                                            ),
-                                          ],
-                                        ),
-                                      );
-                                    }),
-                                  ] else ...<Widget>[
+                                        },
+                                      ),
+                                    ),
                                     const SizedBox(height: 8),
-                                    const Text(
-                                      'Selecione os compartimentos acima para lançar o avanço do dia.',
-                                      style: TextStyle(
+                                    Text(
+                                      'Diário mec.: ${formatDecimal(metrics.dailyM, precision: 2)}%  •  Cumulativo mec.: ${formatDecimal(metrics.cumulativeM, precision: 2)}%\nDiário fina: ${formatDecimal(metrics.dailyF, precision: 2)}%  •  Cumulativo fina: ${formatDecimal(metrics.cumulativeF, precision: 2)}%',
+                                      style: const TextStyle(
                                         color: _kMutedInk,
                                         fontSize: 12,
                                         fontWeight: FontWeight.w600,
                                       ),
                                     ),
+                                    if (sortedSelectedCompartimentos
+                                        .isNotEmpty) ...<Widget>[
+                                      const SizedBox(height: 8),
+                                      ...sortedSelectedCompartimentos.map((
+                                        comp,
+                                      ) {
+                                        final mecanizada =
+                                            compartmentPhaseSnapshot(
+                                              comp,
+                                              fina: false,
+                                            );
+                                        final fina = compartmentPhaseSnapshot(
+                                          comp,
+                                          fina: true,
+                                        );
+                                        final rowStatus =
+                                            mecanizada.blocked && fina.blocked
+                                            ? 'Compartimento concluído'
+                                            : (mecanizada.blocked
+                                                  ? 'Mecanizada concluída; avance só fina'
+                                                  : (fina.blocked
+                                                        ? 'Fina concluída; avance só mecanizada'
+                                                        : 'Lançamento ativo'));
+                                        final rowStatusColor =
+                                            mecanizada.blocked && fina.blocked
+                                            ? const Color(0xFF166534)
+                                            : (mecanizada.blocked ||
+                                                      fina.blocked
+                                                  ? const Color(0xFF8A6100)
+                                                  : const Color(0xFF1D4ED8));
+                                        final rowStatusBg =
+                                            mecanizada.blocked && fina.blocked
+                                            ? const Color(0xFFDFF7E8)
+                                            : (mecanizada.blocked ||
+                                                      fina.blocked
+                                                  ? const Color(0xFFFFF4D6)
+                                                  : const Color(0xFFE2F0FF));
+                                        return Container(
+                                          margin: const EdgeInsets.only(
+                                            bottom: 10,
+                                          ),
+                                          padding: const EdgeInsets.all(10),
+                                          decoration: BoxDecoration(
+                                            border: Border.all(
+                                              color: _kCardBorder,
+                                            ),
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                            color: Colors.white,
+                                          ),
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: <Widget>[
+                                              Row(
+                                                children: <Widget>[
+                                                  Expanded(
+                                                    child: Text(
+                                                      'Compartimento $comp',
+                                                      style: const TextStyle(
+                                                        color: _kInk,
+                                                        fontSize: 12.8,
+                                                        fontWeight:
+                                                            FontWeight.w800,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  Container(
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
+                                                          horizontal: 8,
+                                                          vertical: 4,
+                                                        ),
+                                                    decoration: BoxDecoration(
+                                                      color: rowStatusBg,
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            999,
+                                                          ),
+                                                    ),
+                                                    child: Text(
+                                                      rowStatus,
+                                                      style: TextStyle(
+                                                        color: rowStatusColor,
+                                                        fontSize: 10.8,
+                                                        fontWeight:
+                                                            FontWeight.w800,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                              const SizedBox(height: 8),
+                                              phaseCard(
+                                                comp: comp,
+                                                title:
+                                                    'Mecanizada / Manual / Robotizada',
+                                                fina: false,
+                                              ),
+                                              const SizedBox(height: 8),
+                                              phaseCard(
+                                                comp: comp,
+                                                title: 'Limpeza fina',
+                                                fina: true,
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                      }),
+                                    ] else ...<Widget>[
+                                      const SizedBox(height: 8),
+                                      const Text(
+                                        'Selecione os compartimentos acima para lançar o avanço do dia.',
+                                        style: TextStyle(
+                                          color: _kMutedInk,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
                                   ],
                                 ],
-                              ],
-                            );
-                          },
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: <Widget>[
-                            Expanded(
-                              child: readonlyField(
-                                controller: limpezaDiariaController,
-                                label: 'Limpeza diária média (%)',
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: readonlyField(
-                                controller: limpezaFinaDiariaController,
-                                label: 'Limpeza fina diária média (%)',
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: <Widget>[
-                            Expanded(
-                              child: readonlyField(
-                                controller: limpezaAcuController,
-                                label: 'Limpeza acumulada (%)',
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: readonlyField(
-                                controller: limpezaFinaAcuController,
-                                label: 'Limpeza fina acumulada (%)',
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                      const SizedBox(height: 12),
-                      sectionTitle(
-                        'Observações e equipe',
-                        subtitle:
-                            'Texto em PT com tradução automática para EN e cadastro da equipe em serviço.',
-                      ),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: observacoesController,
-                        minLines: 2,
-                        maxLines: 4,
-                        textInputAction: TextInputAction.done,
-                        decoration: const InputDecoration(
-                          labelText: 'Observações do dia (PT)',
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: observacoesEnController,
-                        minLines: 2,
-                        maxLines: 4,
-                        readOnly: true,
-                        decoration: const InputDecoration(
-                          labelText: 'Observações do dia (EN)',
-                          border: OutlineInputBorder(),
-                          filled: true,
-                          fillColor: Color(0xFFF3F4F6),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: planejamentoController,
-                        minLines: 2,
-                        maxLines: 4,
-                        textInputAction: TextInputAction.done,
-                        decoration: const InputDecoration(
-                          labelText: 'Planejamento próximo turno (PT)',
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: planejamentoEnController,
-                        minLines: 2,
-                        maxLines: 4,
-                        readOnly: true,
-                        decoration: const InputDecoration(
-                          labelText: 'Planejamento próximo turno (EN)',
-                          border: OutlineInputBorder(),
-                          filled: true,
-                          fillColor: Color(0xFFF3F4F6),
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      Row(
-                        children: <Widget>[
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: <Widget>[
-                                Text(
-                                  'Membros da equipe (${teamMembers.length})',
-                                  style: const TextStyle(
-                                    color: _kMutedInk,
-                                    fontSize: 12.5,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                const Text(
-                                  'Inclua apenas quem atuou neste RDO.',
-                                  style: TextStyle(
-                                    color: _kMutedInk,
-                                    fontSize: 11.8,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
+                              );
+                            },
                           ),
-                          TextButton.icon(
-                            onPressed: teamMembers.length >= 20
-                                ? null
-                                : () {
-                                    setModalState(() {
-                                      teamMembers.add(const _TeamMemberDraft());
-                                    });
-                                  },
-                            icon: const Icon(Icons.person_add_alt_1_rounded),
-                            label: const Text('Adicionar'),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: <Widget>[
+                              Expanded(
+                                child: readonlyField(
+                                  controller: limpezaDiariaController,
+                                  label: 'Limpeza diária média (%)',
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: readonlyField(
+                                  controller: limpezaFinaDiariaController,
+                                  label: 'Limpeza fina diária média (%)',
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: <Widget>[
+                              Expanded(
+                                child: readonlyField(
+                                  controller: limpezaAcuController,
+                                  label: 'Limpeza acumulada (%)',
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: readonlyField(
+                                  controller: limpezaFinaAcuController,
+                                  label: 'Limpeza fina acumulada (%)',
+                                ),
+                              ),
+                            ],
                           ),
                         ],
-                      ),
-                      ...teamMembers.asMap().entries.map((entry) {
-                        final index = entry.key;
-                        final row = entry.value;
-                        final personOptions = ensureChoiceContains(
-                          personChoices,
-                          row.nome,
-                        );
-                        final functionOptions = ensureChoiceContains(
-                          functionChoices,
-                          row.funcao,
-                        );
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 10),
+                        const SizedBox(height: 12),
+                        sectionTitle(
+                          'Observações e equipe',
+                          subtitle:
+                              'Texto em PT com tradução automática para EN e cadastro da equipe em serviço.',
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: observacoesController,
+                          minLines: 2,
+                          maxLines: 4,
+                          textInputAction: TextInputAction.done,
+                          decoration: const InputDecoration(
+                            labelText: 'Observações do dia (PT)',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: observacoesEnController,
+                          minLines: 2,
+                          maxLines: 4,
+                          readOnly: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Observações do dia (EN)',
+                            border: OutlineInputBorder(),
+                            filled: true,
+                            fillColor: Color(0xFFF3F4F6),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: planejamentoController,
+                          minLines: 2,
+                          maxLines: 4,
+                          textInputAction: TextInputAction.done,
+                          decoration: const InputDecoration(
+                            labelText: 'Planejamento próximo turno (PT)',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: planejamentoEnController,
+                          minLines: 2,
+                          maxLines: 4,
+                          readOnly: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Planejamento próximo turno (EN)',
+                            border: OutlineInputBorder(),
+                            filled: true,
+                            fillColor: Color(0xFFF3F4F6),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: <Widget>[
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: <Widget>[
+                                  Text(
+                                    'Membros da equipe (${teamMembers.length})',
+                                    style: const TextStyle(
+                                      color: _kMutedInk,
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  const Text(
+                                    'Inclua apenas quem atuou neste RDO.',
+                                    style: TextStyle(
+                                      color: _kMutedInk,
+                                      fontSize: 11.8,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            TextButton.icon(
+                              onPressed: teamMembers.length >= 20
+                                  ? null
+                                  : () {
+                                      setModalState(() {
+                                        teamMembers.add(
+                                          const _TeamMemberDraft(),
+                                        );
+                                      });
+                                    },
+                              icon: const Icon(Icons.person_add_alt_1_rounded),
+                              label: const Text('Adicionar'),
+                            ),
+                          ],
+                        ),
+                        ...teamMembers.asMap().entries.map((entry) {
+                          final index = entry.key;
+                          final row = entry.value;
+                          final personOptions = ensureChoiceContains(
+                            personChoices,
+                            row.nome,
+                          );
+                          final functionOptions = ensureChoiceContains(
+                            functionChoices,
+                            row.funcao,
+                          );
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 10),
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              border: Border.all(color: _kCardBorder),
+                              borderRadius: BorderRadius.circular(10),
+                              color: const Color(0xFFF9FAFB),
+                            ),
+                            child: Column(
+                              children: <Widget>[
+                                Row(
+                                  children: <Widget>[
+                                    Expanded(
+                                      child: Text(
+                                        'Membro ${index + 1}',
+                                        style: const TextStyle(
+                                          color: _kInk,
+                                          fontSize: 12.6,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ),
+                                    IconButton(
+                                      tooltip: 'Remover membro',
+                                      onPressed: teamMembers.length <= 1
+                                          ? null
+                                          : () {
+                                              setModalState(() {
+                                                teamMembers.removeAt(index);
+                                              });
+                                            },
+                                      icon: const Icon(
+                                        Icons.person_remove_alt_1_rounded,
+                                        size: 18,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                if (personOptions.isEmpty)
+                                  TextFormField(
+                                    initialValue: row.nome,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Nome da pessoa (manual)',
+                                      border: OutlineInputBorder(),
+                                    ),
+                                    onChanged: (value) {
+                                      setModalState(() {
+                                        teamMembers[index] = row.copyWith(
+                                          nome: value,
+                                          pessoaId: '',
+                                        );
+                                      });
+                                    },
+                                  )
+                                else
+                                  InkWell(
+                                    borderRadius: BorderRadius.circular(6),
+                                    onTap: () async {
+                                      final picked = await openChoicePicker(
+                                        title: 'Selecionar membro da equipe',
+                                        options: personOptions,
+                                        initialValue: row.nome,
+                                        allowManualValue: true,
+                                      );
+                                      if (picked == null) {
+                                        return;
+                                      }
+                                      final matched = findChoiceByValue(
+                                        picked.value,
+                                        personOptions,
+                                      );
+                                      setModalState(() {
+                                        teamMembers[index] = row.copyWith(
+                                          nome:
+                                              matched?.label
+                                                      .trim()
+                                                      .isNotEmpty ==
+                                                  true
+                                              ? matched!.label.trim()
+                                              : picked.value.trim(),
+                                          pessoaId: matched?.value ?? '',
+                                        );
+                                      });
+                                    },
+                                    child: IgnorePointer(
+                                      child: searchableChoiceDecorator(
+                                        labelText: 'Nome da pessoa',
+                                        hintText: 'Toque para buscar pessoa',
+                                        selectedLabel: row.nome.trim().isEmpty
+                                            ? ''
+                                            : (findChoiceByValue(
+                                                    row.nome,
+                                                    personOptions,
+                                                  )?.label ??
+                                                  row.nome),
+                                      ),
+                                    ),
+                                  ),
+                                const SizedBox(height: 8),
+                                if (functionOptions.isEmpty)
+                                  TextFormField(
+                                    initialValue: row.funcao,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Função',
+                                      border: OutlineInputBorder(),
+                                    ),
+                                    onChanged: (value) {
+                                      setModalState(() {
+                                        teamMembers[index] = row.copyWith(
+                                          funcao: value,
+                                        );
+                                      });
+                                    },
+                                  )
+                                else
+                                  InkWell(
+                                    borderRadius: BorderRadius.circular(6),
+                                    onTap: () async {
+                                      final picked = await openChoicePicker(
+                                        title: 'Selecionar função',
+                                        options: functionOptions,
+                                        initialValue: row.funcao,
+                                        allowManualValue: true,
+                                      );
+                                      if (picked == null) {
+                                        return;
+                                      }
+                                      final matched = findChoiceByValue(
+                                        picked.value,
+                                        functionOptions,
+                                      );
+                                      setModalState(() {
+                                        teamMembers[index] = row.copyWith(
+                                          funcao:
+                                              matched?.value ?? picked.value,
+                                        );
+                                      });
+                                    },
+                                    child: IgnorePointer(
+                                      child: searchableChoiceDecorator(
+                                        labelText: 'Função',
+                                        hintText: 'Toque para buscar função',
+                                        selectedLabel: row.funcao.trim().isEmpty
+                                            ? ''
+                                            : (findChoiceByValue(
+                                                    row.funcao,
+                                                    functionOptions,
+                                                  )?.label ??
+                                                  row.funcao),
+                                      ),
+                                    ),
+                                  ),
+                                const SizedBox(height: 8),
+                                Row(
+                                  children: <Widget>[
+                                    const Expanded(
+                                      child: Text(
+                                        'Em serviço neste RDO',
+                                        style: TextStyle(
+                                          color: _kMutedInk,
+                                          fontSize: 12.5,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ),
+                                    Switch(
+                                      value: row.emServico,
+                                      onChanged: (checked) {
+                                        setModalState(() {
+                                          teamMembers[index] = row.copyWith(
+                                            emServico: checked,
+                                          );
+                                        });
+                                      },
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
+                        const SizedBox(height: 4),
+                        sectionTitle(
+                          'Fotos',
+                          subtitle:
+                              'Anexe até $_kMaxRdoPhotos fotos. Elas serão enviadas na sincronização.',
+                        ),
+                        const SizedBox(height: 8),
+                        Container(
+                          width: double.infinity,
                           padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
                             border: Border.all(color: _kCardBorder),
@@ -9453,555 +9695,382 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                             color: const Color(0xFFF9FAFB),
                           ),
                           child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: <Widget>[
                               Row(
                                 children: <Widget>[
                                   Expanded(
                                     child: Text(
-                                      'Membro ${index + 1}',
+                                      '${photos.length}/$_kMaxRdoPhotos foto(s) carregada(s)',
                                       style: const TextStyle(
-                                        color: _kInk,
-                                        fontSize: 12.6,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                  ),
-                                  IconButton(
-                                    tooltip: 'Remover membro',
-                                    onPressed: teamMembers.length <= 1
-                                        ? null
-                                        : () {
-                                            setModalState(() {
-                                              teamMembers.removeAt(index);
-                                            });
-                                          },
-                                    icon: const Icon(
-                                      Icons.person_remove_alt_1_rounded,
-                                      size: 18,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              if (personOptions.isEmpty)
-                                TextFormField(
-                                  initialValue: row.nome,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Nome da pessoa (manual)',
-                                    border: OutlineInputBorder(),
-                                  ),
-                                  onChanged: (value) {
-                                    setModalState(() {
-                                      teamMembers[index] = row.copyWith(
-                                        nome: value,
-                                        pessoaId: '',
-                                      );
-                                    });
-                                  },
-                                )
-                              else
-                                InkWell(
-                                  borderRadius: BorderRadius.circular(6),
-                                  onTap: () async {
-                                    final picked = await openChoicePicker(
-                                      title: 'Selecionar membro da equipe',
-                                      options: personOptions,
-                                      initialValue: row.nome,
-                                      allowManualValue: true,
-                                    );
-                                    if (picked == null) {
-                                      return;
-                                    }
-                                    final matched = findChoiceByValue(
-                                      picked.value,
-                                      personOptions,
-                                    );
-                                    setModalState(() {
-                                      teamMembers[index] = row.copyWith(
-                                        nome:
-                                            matched?.label.trim().isNotEmpty ==
-                                                true
-                                            ? matched!.label.trim()
-                                            : picked.value.trim(),
-                                        pessoaId: matched?.value ?? '',
-                                      );
-                                    });
-                                  },
-                                  child: IgnorePointer(
-                                    child: searchableChoiceDecorator(
-                                      labelText: 'Nome da pessoa',
-                                      hintText: 'Toque para buscar pessoa',
-                                      selectedLabel: row.nome.trim().isEmpty
-                                          ? ''
-                                          : (findChoiceByValue(
-                                                  row.nome,
-                                                  personOptions,
-                                                )?.label ??
-                                                row.nome),
-                                    ),
-                                  ),
-                                ),
-                              const SizedBox(height: 8),
-                              if (functionOptions.isEmpty)
-                                TextFormField(
-                                  initialValue: row.funcao,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Função',
-                                    border: OutlineInputBorder(),
-                                  ),
-                                  onChanged: (value) {
-                                    setModalState(() {
-                                      teamMembers[index] = row.copyWith(
-                                        funcao: value,
-                                      );
-                                    });
-                                  },
-                                )
-                              else
-                                InkWell(
-                                  borderRadius: BorderRadius.circular(6),
-                                  onTap: () async {
-                                    final picked = await openChoicePicker(
-                                      title: 'Selecionar função',
-                                      options: functionOptions,
-                                      initialValue: row.funcao,
-                                      allowManualValue: true,
-                                    );
-                                    if (picked == null) {
-                                      return;
-                                    }
-                                    final matched = findChoiceByValue(
-                                      picked.value,
-                                      functionOptions,
-                                    );
-                                    setModalState(() {
-                                      teamMembers[index] = row.copyWith(
-                                        funcao: matched?.value ?? picked.value,
-                                      );
-                                    });
-                                  },
-                                  child: IgnorePointer(
-                                    child: searchableChoiceDecorator(
-                                      labelText: 'Função',
-                                      hintText: 'Toque para buscar função',
-                                      selectedLabel: row.funcao.trim().isEmpty
-                                          ? ''
-                                          : (findChoiceByValue(
-                                                  row.funcao,
-                                                  functionOptions,
-                                                )?.label ??
-                                                row.funcao),
-                                    ),
-                                  ),
-                                ),
-                              const SizedBox(height: 8),
-                              Row(
-                                children: <Widget>[
-                                  const Expanded(
-                                    child: Text(
-                                      'Em serviço neste RDO',
-                                      style: TextStyle(
                                         color: _kMutedInk,
-                                        fontSize: 12.5,
+                                        fontSize: 12.3,
                                         fontWeight: FontWeight.w700,
                                       ),
                                     ),
                                   ),
-                                  Switch(
-                                    value: row.emServico,
-                                    onChanged: (checked) {
-                                      setModalState(() {
-                                        teamMembers[index] = row.copyWith(
-                                          emServico: checked,
-                                        );
-                                      });
-                                    },
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(999),
+                                      color: photos.length >= _kMaxRdoPhotos
+                                          ? const Color(0xFFFFF4D8)
+                                          : const Color(0xFFEAF4FF),
+                                      border: Border.all(
+                                        color: photos.length >= _kMaxRdoPhotos
+                                            ? const Color(0xFFF2B648)
+                                            : const Color(0xFFB6D7FF),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      photos.length >= _kMaxRdoPhotos
+                                          ? 'Limite atingido'
+                                          : 'Restam ${_kMaxRdoPhotos - photos.length}',
+                                      style: TextStyle(
+                                        color: photos.length >= _kMaxRdoPhotos
+                                            ? const Color(0xFF8A5A00)
+                                            : const Color(0xFF1F4D8A),
+                                        fontSize: 11.5,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
                                   ),
                                 ],
                               ),
-                            ],
-                          ),
-                        );
-                      }),
-                      const SizedBox(height: 4),
-                      sectionTitle(
-                        'Fotos',
-                        subtitle:
-                            'Anexe até $_kMaxRdoPhotos fotos. Elas serão enviadas na sincronização.',
-                      ),
-                      const SizedBox(height: 8),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: _kCardBorder),
-                          borderRadius: BorderRadius.circular(10),
-                          color: const Color(0xFFF9FAFB),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: <Widget>[
-                            Row(
-                              children: <Widget>[
-                                Expanded(
-                                  child: Text(
-                                    '${photos.length}/$_kMaxRdoPhotos foto(s) carregada(s)',
-                                    style: const TextStyle(
-                                      color: _kMutedInk,
-                                      fontSize: 12.3,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 4,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(999),
-                                    color: photos.length >= _kMaxRdoPhotos
-                                        ? const Color(0xFFFFF4D8)
-                                        : const Color(0xFFEAF4FF),
-                                    border: Border.all(
-                                      color: photos.length >= _kMaxRdoPhotos
-                                          ? const Color(0xFFF2B648)
-                                          : const Color(0xFFB6D7FF),
-                                    ),
-                                  ),
-                                  child: Text(
-                                    photos.length >= _kMaxRdoPhotos
-                                        ? 'Limite atingido'
-                                        : 'Restam ${_kMaxRdoPhotos - photos.length}',
-                                    style: TextStyle(
-                                      color: photos.length >= _kMaxRdoPhotos
-                                          ? const Color(0xFF8A5A00)
-                                          : const Color(0xFF1F4D8A),
-                                      fontSize: 11.5,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            LinearProgressIndicator(
-                              value: photos.length / _kMaxRdoPhotos,
-                              minHeight: 6,
-                              borderRadius: BorderRadius.circular(999),
-                              backgroundColor: const Color(0xFFE5E7EB),
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                photos.length >= _kMaxRdoPhotos
-                                    ? const Color(0xFFF2B648)
-                                    : const Color(0xFF4D6F00),
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
-                              children: <Widget>[
-                                OutlinedButton.icon(
-                                  onPressed: photos.length >= _kMaxRdoPhotos
-                                      ? null
-                                      : () async {
-                                          await pickPhotoFromCamera(
-                                            setModalState,
-                                          );
-                                        },
-                                  icon: const Icon(Icons.camera_alt_rounded),
-                                  label: const Text('Câmera'),
-                                ),
-                                OutlinedButton.icon(
-                                  onPressed: photos.length >= _kMaxRdoPhotos
-                                      ? null
-                                      : () async {
-                                          await pickPhotosFromGallery(
-                                            setModalState,
-                                          );
-                                        },
-                                  icon: const Icon(Icons.photo_library_rounded),
-                                  label: const Text('Galeria'),
-                                ),
-                              ],
-                            ),
-                            if (photos.isEmpty) ...<Widget>[
                               const SizedBox(height: 8),
-                              const Text(
-                                'Nenhuma foto adicionada neste RDO.',
-                                style: TextStyle(
-                                  color: _kMutedInk,
-                                  fontSize: 12.2,
-                                  fontWeight: FontWeight.w600,
+                              LinearProgressIndicator(
+                                value: photos.length / _kMaxRdoPhotos,
+                                minHeight: 6,
+                                borderRadius: BorderRadius.circular(999),
+                                backgroundColor: const Color(0xFFE5E7EB),
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  photos.length >= _kMaxRdoPhotos
+                                      ? const Color(0xFFF2B648)
+                                      : const Color(0xFF4D6F00),
                                 ),
                               ),
-                            ] else ...<Widget>[
-                              const SizedBox(height: 10),
+                              const SizedBox(height: 8),
                               Wrap(
                                 spacing: 8,
                                 runSpacing: 8,
-                                children: photos
-                                    .asMap()
-                                    .entries
-                                    .map((entry) {
-                                      final index = entry.key;
-                                      final photo = entry.value;
-                                      return Container(
-                                        width: 86,
-                                        height: 86,
-                                        decoration: BoxDecoration(
-                                          borderRadius: BorderRadius.circular(
-                                            10,
-                                          ),
-                                          border: Border.all(
-                                            color: _kCardBorder,
-                                          ),
-                                          image: DecorationImage(
-                                            image: MemoryImage(photo.bytes),
-                                            fit: BoxFit.cover,
-                                          ),
-                                        ),
-                                        child: Stack(
-                                          children: <Widget>[
-                                            Positioned(
-                                              left: 4,
-                                              bottom: 4,
-                                              child: Container(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 6,
-                                                      vertical: 2,
-                                                    ),
-                                                decoration: BoxDecoration(
-                                                  color: const Color(
-                                                    0xCC1F7A1F,
-                                                  ),
-                                                  borderRadius:
-                                                      BorderRadius.circular(
-                                                        999,
-                                                      ),
-                                                ),
-                                                child: const Row(
-                                                  mainAxisSize:
-                                                      MainAxisSize.min,
-                                                  children: <Widget>[
-                                                    Icon(
-                                                      Icons.check_circle,
-                                                      size: 11,
-                                                      color: Colors.white,
-                                                    ),
-                                                    SizedBox(width: 3),
-                                                    Text(
-                                                      'Carregada',
-                                                      style: TextStyle(
-                                                        color: Colors.white,
-                                                        fontSize: 9.5,
-                                                        fontWeight:
-                                                            FontWeight.w700,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
+                                children: <Widget>[
+                                  OutlinedButton.icon(
+                                    onPressed: photos.length >= _kMaxRdoPhotos
+                                        ? null
+                                        : () async {
+                                            await pickPhotoFromCamera(
+                                              setModalState,
+                                            );
+                                          },
+                                    icon: const Icon(Icons.camera_alt_rounded),
+                                    label: const Text('Câmera'),
+                                  ),
+                                  OutlinedButton.icon(
+                                    onPressed: photos.length >= _kMaxRdoPhotos
+                                        ? null
+                                        : () async {
+                                            await pickPhotosFromGallery(
+                                              setModalState,
+                                            );
+                                          },
+                                    icon: const Icon(
+                                      Icons.photo_library_rounded,
+                                    ),
+                                    label: const Text('Galeria'),
+                                  ),
+                                ],
+                              ),
+                              if (photos.isEmpty) ...<Widget>[
+                                const SizedBox(height: 8),
+                                const Text(
+                                  'Nenhuma foto adicionada neste RDO.',
+                                  style: TextStyle(
+                                    color: _kMutedInk,
+                                    fontSize: 12.2,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ] else ...<Widget>[
+                                const SizedBox(height: 10),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: photos
+                                      .asMap()
+                                      .entries
+                                      .map((entry) {
+                                        final index = entry.key;
+                                        final photo = entry.value;
+                                        return Container(
+                                          width: 86,
+                                          height: 86,
+                                          decoration: BoxDecoration(
+                                            borderRadius: BorderRadius.circular(
+                                              10,
                                             ),
-                                            Positioned(
-                                              right: 4,
-                                              top: 4,
-                                              child: GestureDetector(
-                                                onTap: () {
-                                                  setModalState(() {
-                                                    photos.removeAt(index);
-                                                  });
-                                                },
+                                            border: Border.all(
+                                              color: _kCardBorder,
+                                            ),
+                                            image: DecorationImage(
+                                              image: MemoryImage(photo.bytes),
+                                              fit: BoxFit.cover,
+                                            ),
+                                          ),
+                                          child: Stack(
+                                            children: <Widget>[
+                                              Positioned(
+                                                left: 4,
+                                                bottom: 4,
                                                 child: Container(
-                                                  width: 24,
-                                                  height: 24,
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 6,
+                                                        vertical: 2,
+                                                      ),
                                                   decoration: BoxDecoration(
                                                     color: const Color(
-                                                      0xCC111111,
+                                                      0xCC1F7A1F,
                                                     ),
                                                     borderRadius:
                                                         BorderRadius.circular(
                                                           999,
                                                         ),
                                                   ),
-                                                  child: const Icon(
-                                                    Icons.close_rounded,
-                                                    size: 16,
-                                                    color: Colors.white,
+                                                  child: const Row(
+                                                    mainAxisSize:
+                                                        MainAxisSize.min,
+                                                    children: <Widget>[
+                                                      Icon(
+                                                        Icons.check_circle,
+                                                        size: 11,
+                                                        color: Colors.white,
+                                                      ),
+                                                      SizedBox(width: 3),
+                                                      Text(
+                                                        'Carregada',
+                                                        style: TextStyle(
+                                                          color: Colors.white,
+                                                          fontSize: 9.5,
+                                                          fontWeight:
+                                                              FontWeight.w700,
+                                                        ),
+                                                      ),
+                                                    ],
                                                   ),
                                                 ),
                                               ),
-                                            ),
-                                          ],
-                                        ),
-                                      );
-                                    })
-                                    .toList(growable: false),
-                              ),
+                                              Positioned(
+                                                right: 4,
+                                                top: 4,
+                                                child: GestureDetector(
+                                                  onTap: () {
+                                                    setModalState(() {
+                                                      photos.removeAt(index);
+                                                    });
+                                                  },
+                                                  child: Container(
+                                                    width: 24,
+                                                    height: 24,
+                                                    decoration: BoxDecoration(
+                                                      color: const Color(
+                                                        0xCC111111,
+                                                      ),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            999,
+                                                          ),
+                                                    ),
+                                                    child: const Icon(
+                                                      Icons.close_rounded,
+                                                      size: 16,
+                                                      color: Colors.white,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                      })
+                                      .toList(growable: false),
+                                ),
+                              ],
                             ],
-                          ],
-                        ),
-                      ),
-                      if (error != null) ...<Widget>[
-                        const SizedBox(height: 10),
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 8,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFFF1F1),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: const Color(0xFFFECACA)),
-                          ),
-                          child: Text(
-                            error!,
-                            style: const TextStyle(
-                              color: Color(0xFF7F1D1D),
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w600,
-                            ),
                           ),
                         ),
-                      ],
-                      const SizedBox(height: 12),
-                      if (tankMode != _TankMode.none) ...<Widget>[
-                        SizedBox(
-                          width: double.infinity,
-                          child: OutlinedButton.icon(
-                            onPressed:
-                                tankMode == _TankMode.create &&
-                                    tankCreationLocked
-                                ? null
-                                : () {
-                                    if (tankMode == _TankMode.create &&
-                                        isTankCreationLocked()) {
-                                      setModalState(() {
-                                        error = tankLimitReachedMessage();
-                                      });
-                                      return;
-                                    }
-                                    final tankDraft = resolveCurrentTankDraft(
-                                      setModalState,
-                                      requireTank: true,
-                                    );
-                                    if (tankDraft == null ||
-                                        tankDraft.mode == _TankMode.none) {
-                                      return;
-                                    }
-
-                                    final tankLabel = describeTankDraft(
-                                      tankDraft,
-                                    );
-                                    setModalState(() {
-                                      stagedTankDrafts.add(tankDraft);
-                                      error = null;
-                                      if (tankMode == _TankMode.existing) {
-                                        selectedTankKey = null;
-                                      }
-                                      clearTankFieldsForNew();
-                                    });
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          tankLabel.trim().isEmpty
-                                              ? 'Tanque adicionado. Continue preenchendo o próximo tanque.'
-                                              : 'Tanque $tankLabel adicionado. Continue preenchendo o próximo tanque.',
-                                        ),
-                                      ),
-                                    );
-                                    scrollToTankSection();
-                                  },
-                            icon: const Icon(Icons.add_circle_outline_rounded),
-                            label: const Text(
-                              'Salvar e adicionar outro tanque',
+                        if (error != null) ...<Widget>[
+                          const SizedBox(height: 10),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 8,
                             ),
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                      ],
-                      Row(
-                        children: <Widget>[
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: () {
-                                Navigator.of(modalContext).pop();
-                              },
-                              child: const Text('Cancelar'),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: FilledButton(
-                              style: FilledButton.styleFrom(
-                                backgroundColor: AppTheme.supervisorLime,
-                                foregroundColor: _kInk,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFFF1F1),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: const Color(0xFFFECACA),
                               ),
-                              onPressed: () {
-                                if (!validateActivities(setModalState)) {
-                                  return;
-                                }
-
-                                final requireCurrentTank =
-                                    tankMode != _TankMode.none &&
-                                    stagedTankDrafts.isEmpty;
-                                final currentTankDraft =
-                                    resolveCurrentTankDraft(
-                                      setModalState,
-                                      requireTank: requireCurrentTank,
-                                    );
-                                if (currentTankDraft == null) {
-                                  return;
-                                }
-
-                                final allTankDrafts = <_TankDraft>[
-                                  ...stagedTankDrafts,
-                                ];
-                                if (currentTankDraft.mode != _TankMode.none) {
-                                  allTankDrafts.add(currentTankDraft);
-                                }
-                                if (allTankDrafts.isEmpty) {
-                                  allTankDrafts.add(const _TankDraft.none());
-                                }
-
-                                Navigator.of(modalContext).pop(
-                                  _CreateRdoDraft(
-                                    businessDate: businessDate,
-                                    turno: turno,
-                                    observacoes: observacoesController.text,
-                                    observacoesEn: observacoesEnController.text,
-                                    planejamento: planejamentoController.text,
-                                    planejamentoEn:
-                                        planejamentoEnController.text,
-                                    ptAbertura: ptAbertura,
-                                    ptTurnos: ptTurnos.toList(growable: false),
-                                    ptNumManha: ptManhaController.text,
-                                    ptNumTarde: ptTardeController.text,
-                                    ptNumNoite: ptNoiteController.text,
-                                    ecTimes: ecTimes
-                                        .map((item) => item.copyWith())
-                                        .toList(growable: false),
-                                    teamMembers: teamMembers
-                                        .map((item) => item.copyWith())
-                                        .toList(growable: false),
-                                    tank: allTankDrafts.first,
-                                    tanks: allTankDrafts,
-                                    activities: activities
-                                        .map((item) => item.copyWith())
-                                        .toList(growable: false),
-                                    photos: photos
-                                        .map((item) => item.copyWith())
-                                        .toList(growable: false),
-                                  ),
-                                );
-                              },
-                              child: const Text('Enviar RDO'),
+                            ),
+                            child: Text(
+                              error!,
+                              style: const TextStyle(
+                                color: Color(0xFF7F1D1D),
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
                         ],
-                      ),
-                    ],
+                        const SizedBox(height: 12),
+                        if (tankMode != _TankMode.none) ...<Widget>[
+                          SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton.icon(
+                              onPressed:
+                                  tankMode == _TankMode.create &&
+                                      tankCreationLocked
+                                  ? null
+                                  : () {
+                                      if (tankMode == _TankMode.create &&
+                                          isTankCreationLocked()) {
+                                        setModalState(() {
+                                          error = tankLimitReachedMessage();
+                                        });
+                                        return;
+                                      }
+                                      final tankDraft = resolveCurrentTankDraft(
+                                        setModalState,
+                                        requireTank: true,
+                                      );
+                                      if (tankDraft == null ||
+                                          tankDraft.mode == _TankMode.none) {
+                                        return;
+                                      }
+
+                                      final tankLabel = describeTankDraft(
+                                        tankDraft,
+                                      );
+                                      setModalState(() {
+                                        stagedTankDrafts.add(tankDraft);
+                                        error = null;
+                                        if (tankMode == _TankMode.existing) {
+                                          selectedTankKey = null;
+                                        }
+                                        clearTankFieldsForNew();
+                                      });
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            tankLabel.trim().isEmpty
+                                                ? 'Tanque adicionado. Continue preenchendo o próximo tanque.'
+                                                : 'Tanque $tankLabel adicionado. Continue preenchendo o próximo tanque.',
+                                          ),
+                                        ),
+                                      );
+                                      scrollToTankSection();
+                                    },
+                              icon: const Icon(
+                                Icons.add_circle_outline_rounded,
+                              ),
+                              label: const Text(
+                                'Salvar e adicionar outro tanque',
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                        ],
+                        Row(
+                          children: <Widget>[
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () {
+                                  Navigator.of(modalContext).pop();
+                                },
+                                child: const Text('Cancelar'),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: FilledButton(
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: AppTheme.supervisorLime,
+                                  foregroundColor: _kInk,
+                                ),
+                                onPressed: () {
+                                  if (!validateActivities(setModalState)) {
+                                    return;
+                                  }
+
+                                  final requireCurrentTank =
+                                      tankMode != _TankMode.none &&
+                                      stagedTankDrafts.isEmpty;
+                                  final currentTankDraft =
+                                      resolveCurrentTankDraft(
+                                        setModalState,
+                                        requireTank: requireCurrentTank,
+                                      );
+                                  if (currentTankDraft == null) {
+                                    return;
+                                  }
+
+                                  final allTankDrafts = <_TankDraft>[
+                                    ...stagedTankDrafts,
+                                  ];
+                                  if (currentTankDraft.mode != _TankMode.none) {
+                                    allTankDrafts.add(currentTankDraft);
+                                  }
+                                  if (allTankDrafts.isEmpty) {
+                                    allTankDrafts.add(const _TankDraft.none());
+                                  }
+
+                                  Navigator.of(modalContext).pop(
+                                    _CreateRdoDraft(
+                                      businessDate: businessDate,
+                                      turno: turno,
+                                      observacoes: observacoesController.text,
+                                      observacoesEn:
+                                          observacoesEnController.text,
+                                      planejamento: planejamentoController.text,
+                                      planejamentoEn:
+                                          planejamentoEnController.text,
+                                      ptAbertura: ptAbertura,
+                                      ptTurnos: ptTurnos.toList(
+                                        growable: false,
+                                      ),
+                                      ptNumManha: ptManhaController.text,
+                                      ptNumTarde: ptTardeController.text,
+                                      ptNumNoite: ptNoiteController.text,
+                                      ecTimes: ecTimes
+                                          .map((item) => item.copyWith())
+                                          .toList(growable: false),
+                                      teamMembers: teamMembers
+                                          .map((item) => item.copyWith())
+                                          .toList(growable: false),
+                                      tank: allTankDrafts.first,
+                                      tanks: allTankDrafts,
+                                      activities: activities
+                                          .map((item) => item.copyWith())
+                                          .toList(growable: false),
+                                      photos: photos
+                                          .map((item) => item.copyWith())
+                                          .toList(growable: false),
+                                    ),
+                                  );
+                                },
+                                child: const Text('Enviar RDO'),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               );
