@@ -544,7 +544,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     ) {
       final hasConnectivity = _isConnectivityAvailable(results);
       final hadConnectivity = _hasNetworkConnectivity;
-      _hasNetworkConnectivity = hasConnectivity;
+      if (mounted) {
+        setState(() {
+          _hasNetworkConnectivity = hasConnectivity;
+        });
+      } else {
+        _hasNetworkConnectivity = hasConnectivity;
+      }
       if (hasConnectivity && !hadConnectivity) {
         unawaited(_handleConnectivityRestored());
       }
@@ -2129,6 +2135,35 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     return (widget.mobileApiAccessToken ?? '').trim();
   }
 
+  String _dynamicAsString(dynamic raw) {
+    if (raw == null) {
+      return '';
+    }
+    return '$raw'.trim();
+  }
+
+  int? _dynamicAsInt(dynamic raw) {
+    final text = _dynamicAsString(raw);
+    if (text.isEmpty) {
+      return null;
+    }
+    return int.tryParse(text);
+  }
+
+  bool? _dynamicAsBool(dynamic raw) {
+    final text = _dynamicAsString(raw).toLowerCase();
+    if (text.isEmpty) {
+      return null;
+    }
+    if (text == 'true' || text == '1' || text == 'sim' || text == 'yes') {
+      return true;
+    }
+    if (text == 'false' || text == '0' || text == 'nao' || text == 'não' || text == 'no') {
+      return false;
+    }
+    return null;
+  }
+
   Map<String, String> _mobileAuthHeaders() {
     final token = _mobileAccessToken();
     if (token.isEmpty) {
@@ -2169,6 +2204,55 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     return base.replace(path: '$basePath$rdoId/page/', queryParameters: query);
   }
 
+  Uri? _buildMobileRdoEditUri(int rdoId) {
+    final base = widget.mobileRdoPageBaseUrl;
+    if (base == null || rdoId <= 0) {
+      return null;
+    }
+    final basePath = base.path.endsWith('/') ? base.path : '${base.path}/';
+    return base.replace(path: '$basePath$rdoId/edit/');
+  }
+
+  List<_TeamMemberDraft> _parseServerTeamMembers(dynamic rawTeam) {
+    if (rawTeam is! List) {
+      return const <_TeamMemberDraft>[];
+    }
+    final out = <_TeamMemberDraft>[];
+    for (final row in rawTeam) {
+      if (row is! Map) {
+        continue;
+      }
+      final map = Map<String, dynamic>.from(row);
+      out.add(
+        _TeamMemberDraft(
+          nome: _dynamicAsString(map['nome']),
+          funcao: _dynamicAsString(map['funcao']),
+          pessoaId: _dynamicAsString(map['pessoa_id']),
+          emServico: _dynamicAsBool(map['em_servico']) ?? true,
+        ),
+      );
+    }
+    return out;
+  }
+
+  _ServerRdoOption? _parseServerRdoOption(Map<String, dynamic> map) {
+    final rdoId = int.tryParse('${map['id'] ?? ''}');
+    if (rdoId == null || rdoId <= 0) {
+      return null;
+    }
+    final rawSequence = '${map['rdo'] ?? ''}'.trim();
+    final sequence = int.tryParse(rawSequence) ?? 0;
+    final dateRaw = '${map['data'] ?? map['data_inicio'] ?? ''}'.trim();
+    final date = dateRaw.isEmpty ? null : DateTime.tryParse(dateRaw);
+    return _ServerRdoOption(
+      id: rdoId,
+      sequence: sequence,
+      businessDate: date,
+      teamMembers: _parseServerTeamMembers(map['equipe']),
+      reportedPob: _dynamicAsInt(map['pob']),
+    );
+  }
+
   Future<List<_ServerRdoOption>> _loadRdosForOs(AssignedOsItem assigned) async {
     final uri = _buildMobileOsRdosUri(
       osId: assigned.id,
@@ -2201,15 +2285,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         if (row is! Map) {
           continue;
         }
-        final map = Map<String, dynamic>.from(row);
-        final rdoId = int.tryParse('${map['id'] ?? ''}');
-        if (rdoId == null || rdoId <= 0) {
+        final parsed = _parseServerRdoOption(Map<String, dynamic>.from(row));
+        if (parsed == null) {
           continue;
         }
-        final seq = int.tryParse('${map['rdo'] ?? ''}') ?? 0;
-        final dateRaw = '${map['data'] ?? ''}'.trim();
-        final date = dateRaw.isEmpty ? null : DateTime.tryParse(dateRaw);
-        out.add(_ServerRdoOption(id: rdoId, sequence: seq, businessDate: date));
+        out.add(parsed);
       }
       out.sort((a, b) {
         final aSeq = a.sequence;
@@ -2237,6 +2317,1013 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     } catch (_) {
       return const <_ServerRdoOption>[];
     }
+  }
+
+  bool _isOnlineRdoEditConfigured() {
+    return widget.mobileRdoPageBaseUrl != null &&
+        widget.mobileOsRdosBaseUrl != null &&
+        _mobileAccessToken().isNotEmpty;
+  }
+
+  String? _editRdoUnavailableReason() {
+    if (!_isOnlineRdoEditConfigured()) {
+      return 'Edição online indisponível: verifique sessão/configuração do app.';
+    }
+    if (!_hasNetworkConnectivity) {
+      return 'Edição disponível apenas online. Conecte-se à internet para continuar.';
+    }
+    return null;
+  }
+
+  String _serverRdoLabel(_ServerRdoOption option) {
+    if (option.sequence > 0) {
+      return 'RDO ${option.sequence}';
+    }
+    return 'RDO #${option.id}';
+  }
+
+  List<ActivityChoiceItem> _ensureChoiceContainsForEdit(
+    List<ActivityChoiceItem> source,
+    String current,
+  ) {
+    final normalized = current.trim();
+    if (normalized.isEmpty) {
+      return source;
+    }
+    for (final row in source) {
+      if (row.value.trim().toLowerCase() == normalized.toLowerCase()) {
+        return source;
+      }
+    }
+    return <ActivityChoiceItem>[
+      ActivityChoiceItem(value: normalized, label: normalized),
+      ...source,
+    ];
+  }
+
+  ActivityChoiceItem? _findChoiceByValueForEdit(
+    String value,
+    List<ActivityChoiceItem> options,
+  ) {
+    final normalized = value.trim().toLowerCase();
+    if (normalized.isEmpty) {
+      return null;
+    }
+    for (final row in options) {
+      if (row.value.trim().toLowerCase() == normalized) {
+        return row;
+      }
+    }
+    return null;
+  }
+
+  Widget _buildSearchableChoiceDecoratorForEdit({
+    required String labelText,
+    required String hintText,
+    required String selectedLabel,
+  }) {
+    return InputDecorator(
+      decoration: InputDecoration(
+        labelText: labelText,
+        hintText: hintText,
+        border: const OutlineInputBorder(),
+        suffixIcon: const Icon(Icons.search_rounded),
+      ),
+      isEmpty: selectedLabel.trim().isEmpty,
+      child: Text(
+        selectedLabel.trim().isEmpty ? hintText : selectedLabel,
+        style: TextStyle(
+          color: selectedLabel.trim().isEmpty ? _kMutedInk : _kInk,
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+  Future<ActivityChoiceItem?> _openChoicePickerForEdit({
+    required String title,
+    required List<ActivityChoiceItem> options,
+    String initialValue = '',
+    bool allowManualValue = true,
+  }) async {
+    final searchController = TextEditingController(text: initialValue.trim());
+    try {
+      return showModalBottomSheet<ActivityChoiceItem>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        builder: (pickerContext) {
+          var query = initialValue.trim();
+          return StatefulBuilder(
+            builder: (pickerContext, setPickerState) {
+              final filtered = options.where((item) {
+                final q = query.trim().toLowerCase();
+                if (q.isEmpty) {
+                  return true;
+                }
+                return item.label.toLowerCase().contains(q) ||
+                    item.value.toLowerCase().contains(q);
+              }).toList(growable: false);
+
+              return FractionallySizedBox(
+                heightFactor: 0.82,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          color: _kInk,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: searchController,
+                        autofocus: true,
+                        onChanged: (value) {
+                          setPickerState(() {
+                            query = value;
+                          });
+                        },
+                        decoration: const InputDecoration(
+                          labelText: 'Buscar',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.search_rounded),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      if (allowManualValue && query.trim().isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: OutlinedButton.icon(
+                            onPressed: () {
+                              Navigator.of(pickerContext).pop(
+                                ActivityChoiceItem(
+                                  value: query.trim(),
+                                  label: query.trim(),
+                                ),
+                              );
+                            },
+                            icon: const Icon(Icons.edit_rounded),
+                            label: Text('Usar "${query.trim()}"'),
+                          ),
+                        ),
+                      Expanded(
+                        child: filtered.isEmpty
+                            ? Container(
+                                width: double.infinity,
+                                alignment: Alignment.center,
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: _kCardBorder),
+                                  color: const Color(0xFFF9FAFB),
+                                ),
+                                child: const Text(
+                                  'Nenhum resultado para esta busca.',
+                                  style: TextStyle(
+                                    color: _kMutedInk,
+                                    fontSize: 12.4,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              )
+                            : ListView.separated(
+                                itemCount: filtered.length,
+                                separatorBuilder: (_, context) =>
+                                    const Divider(height: 1),
+                                itemBuilder: (_, index) {
+                                  final item = filtered[index];
+                                  final subtitle = item.value.trim() ==
+                                          item.label.trim()
+                                      ? ''
+                                      : item.value.trim();
+                                  return ListTile(
+                                    dense: true,
+                                    title: Text(
+                                      item.label,
+                                      style: const TextStyle(
+                                        color: _kInk,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    subtitle: subtitle.isEmpty
+                                        ? null
+                                        : Text(
+                                            subtitle,
+                                            style: const TextStyle(
+                                              color: _kMutedInk,
+                                              fontSize: 11.6,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                    onTap: () =>
+                                        Navigator.of(pickerContext).pop(item),
+                                  );
+                                },
+                              ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      );
+    } finally {
+      searchController.dispose();
+    }
+  }
+
+  String _buildTeamCountLabel(
+    List<_TeamMemberDraft> teamMembers, {
+    int? reportedPob,
+  }) {
+    final normalized = _normalizeTeamMembers(teamMembers);
+    final total = normalized.isNotEmpty ? normalized.length : (reportedPob ?? 0);
+    if (total <= 0) {
+      return 'Sem equipe registrada';
+    }
+    if (total == 1) {
+      return '1 membro registrado';
+    }
+    return '$total membros registrados';
+  }
+
+  _TeamSyncRow? _findSupervisorTeamMember(List<_TeamMemberDraft> teamMembers) {
+    final normalized = _normalizeTeamMembers(teamMembers);
+    if (normalized.isEmpty) {
+      return null;
+    }
+    for (final row in normalized) {
+      final role = row.funcao.trim().toUpperCase();
+      if (role.contains('SUPERVISOR')) {
+        return row;
+      }
+    }
+    for (final row in normalized) {
+      if (row.nome.trim().isNotEmpty) {
+        return row;
+      }
+    }
+    return normalized.first;
+  }
+
+  String _buildTeamPrimaryLabel(
+    List<_TeamMemberDraft> teamMembers, {
+    int? reportedPob,
+  }) {
+    final normalized = _normalizeTeamMembers(teamMembers);
+    if (normalized.isEmpty) {
+      if ((reportedPob ?? 0) > 0) {
+        return _buildTeamCountLabel(
+          teamMembers,
+          reportedPob: reportedPob,
+        );
+      }
+      return 'Sem equipe registrada';
+    }
+    final supervisor = _findSupervisorTeamMember(teamMembers);
+    final supervisorName = supervisor?.nome.trim() ?? '';
+    if (supervisorName.isNotEmpty) {
+      final role = supervisor?.funcao.trim().toUpperCase() ?? '';
+      if (role.contains('SUPERVISOR')) {
+        return 'Supervisor: $supervisorName';
+      }
+      return supervisorName;
+    }
+    return _buildTeamCountLabel(
+      teamMembers,
+      reportedPob: reportedPob,
+    );
+  }
+
+  String _buildTeamSecondaryLabel(
+    List<_TeamMemberDraft> teamMembers, {
+    int? reportedPob,
+  }) {
+    final normalized = _normalizeTeamMembers(teamMembers);
+    final total = normalized.isNotEmpty ? normalized.length : (reportedPob ?? 0);
+    if (total <= 0) {
+      return 'Sem equipe registrada';
+    }
+    final supervisor = _findSupervisorTeamMember(teamMembers);
+    final hasSupervisor = supervisor != null &&
+        supervisor.nome.trim().isNotEmpty &&
+        supervisor.funcao.trim().toUpperCase().contains('SUPERVISOR');
+    final remaining = hasSupervisor ? total - 1 : total;
+    if (remaining <= 0) {
+      return 'Sem outros membros na equipe';
+    }
+    if (remaining == 1) {
+      return '+1 membro na equipe';
+    }
+    return '+$remaining membros na equipe';
+  }
+
+  Future<_ServerRdoOption?> _pickRdoForEdit(
+    AssignedOsItem assigned,
+    List<_ServerRdoOption> options,
+  ) async {
+    if (options.isEmpty) {
+      return null;
+    }
+    return showModalBottomSheet<_ServerRdoOption>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (ctx) {
+        return FractionallySizedBox(
+          heightFactor: 0.78,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  'Editar RDO • OS ${assigned.osNumber}',
+                  style: const TextStyle(
+                    color: _kInk,
+                    fontSize: 16.2,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Selecione um RDO já lançado para ajustar apenas data e equipe.',
+                  style: TextStyle(
+                    color: _kMutedInk,
+                    fontSize: 12.3,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Expanded(
+                  child: ListView.separated(
+                    itemCount: options.length,
+                    separatorBuilder: (_, context) =>
+                        const SizedBox(height: 8),
+                    itemBuilder: (_, index) {
+                      final option = options[index];
+                      final teamPrimaryLabel = _buildTeamPrimaryLabel(
+                        option.teamMembers,
+                        reportedPob: option.reportedPob,
+                      );
+                      final teamCountLabel = _buildTeamCountLabel(
+                        option.teamMembers,
+                        reportedPob: option.reportedPob,
+                      );
+                      final teamSecondaryLabel = _buildTeamSecondaryLabel(
+                        option.teamMembers,
+                        reportedPob: option.reportedPob,
+                      );
+                      final dateLabel = option.businessDate == null
+                          ? 'Sem data'
+                          : _formatDate(option.businessDate!);
+                      return InkWell(
+                        borderRadius: BorderRadius.circular(14),
+                        onTap: () => Navigator.of(ctx).pop(option),
+                        child: Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: _kCardBorder),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Row(
+                                children: <Widget>[
+                                  Expanded(
+                                    child: Text(
+                                      _serverRdoLabel(option),
+                                      style: const TextStyle(
+                                        color: _kInk,
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  ),
+                                  const Icon(Icons.edit_note_rounded, color: _kInk),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              _MetaChip(
+                                icon: Icons.calendar_today_rounded,
+                                text: dateLabel,
+                              ),
+                              const SizedBox(height: 10),
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 10,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF7F8FA),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: _kCardBorder),
+                                ),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: <Widget>[
+                                    const Padding(
+                                      padding: EdgeInsets.only(top: 1),
+                                      child: Icon(
+                                        Icons.groups_rounded,
+                                        size: 16,
+                                        color: _kInk,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: <Widget>[
+                                          Text(
+                                            teamCountLabel,
+                                            style: const TextStyle(
+                                              color: _kInk,
+                                              fontSize: 12.4,
+                                              fontWeight: FontWeight.w800,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            teamPrimaryLabel,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              color: _kMutedInk,
+                                              fontSize: 12.2,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            teamSecondaryLabel,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              color: _kMutedInk,
+                                              fontSize: 11.8,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<bool> _saveServerRdoEdit({
+    required _ServerRdoOption option,
+    required DateTime businessDate,
+    required List<_TeamMemberDraft> teamMembers,
+  }) async {
+    final uri = _buildMobileRdoEditUri(option.id);
+    if (uri == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Endpoint de edição do RDO não configurado.')),
+        );
+      }
+      return false;
+    }
+
+    final headers = <String, String>{
+      ..._mobileAuthHeaders(),
+      'Content-Type': 'application/json',
+    };
+    if (headers['Authorization'] == null || headers['Authorization']!.trim().isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Sessão do app indisponível para editar o RDO.')),
+        );
+      }
+      return false;
+    }
+
+    final normalizedTeam = _normalizeTeamMembers(teamMembers);
+    final payload = <String, dynamic>{
+      'data': _formatApiDate(businessDate),
+      'data_inicio': _formatApiDate(businessDate),
+      'rdo_data_inicio': _formatApiDate(businessDate),
+    };
+    if (normalizedTeam.isEmpty) {
+      payload['equipe_nome[]'] = <String>[''];
+      payload['equipe_funcao[]'] = <String>[''];
+      payload['equipe_pessoa_id[]'] = <String>[''];
+      payload['equipe_em_servico[]'] = <String>['true'];
+    } else {
+      payload['equipe_nome[]'] = normalizedTeam.map((row) => row.nome).toList();
+      payload['equipe_funcao[]'] = normalizedTeam
+          .map((row) => row.funcao)
+          .toList();
+      payload['equipe_pessoa_id[]'] = normalizedTeam
+          .map((row) => row.pessoaId)
+          .toList();
+      payload['equipe_em_servico[]'] = normalizedTeam
+          .map((row) => row.emServico ? 'true' : 'false')
+          .toList();
+    }
+
+    try {
+      final response = await http.post(
+        uri,
+        headers: headers,
+        body: jsonEncode(payload),
+      );
+      final decoded = jsonDecode(response.body);
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        final errorMessage = decoded is Map
+            ? '${decoded['error'] ?? 'Falha ao editar o RDO.'}'
+            : 'Falha ao editar o RDO.';
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(errorMessage)),
+          );
+        }
+        return false;
+      }
+      if (decoded is! Map || decoded['success'] != true) {
+        final errorMessage = decoded is Map
+            ? '${decoded['error'] ?? 'Falha ao editar o RDO.'}'
+            : 'Falha ao editar o RDO.';
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(errorMessage)),
+          );
+        }
+        return false;
+      }
+      return true;
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Não foi possível salvar a edição do RDO.'),
+          ),
+        );
+      }
+      return false;
+    }
+  }
+
+  Future<void> _openEditRdoSheet(
+    AssignedOsItem assigned,
+    _ServerRdoOption option,
+  ) async {
+    DateTime businessDate = option.businessDate ?? DateTime.now();
+    final initialTeam = option.teamMembers.isEmpty
+        ? <_TeamMemberDraft>[const _TeamMemberDraft()]
+        : option.teamMembers
+              .map(
+                (row) => _TeamMemberDraft(
+                  nome: row.nome,
+                  funcao: row.funcao,
+                  pessoaId: row.pessoaId,
+                  emServico: row.emServico,
+                ),
+              )
+              .toList(growable: true);
+    final personChoices = _personChoices;
+    final functionChoices = _functionChoices;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (modalContext) {
+        final modalScrollController = ScrollController();
+        final teamMembers = initialTeam;
+        var saving = false;
+        return StatefulBuilder(
+          builder: (modalContext, setModalState) {
+            return FractionallySizedBox(
+              heightFactor: 0.9,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                child: SingleChildScrollView(
+                  controller: modalScrollController,
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
+                  padding: const EdgeInsets.only(bottom: 18),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        '${_serverRdoLabel(option)} • OS ${assigned.osNumber}',
+                        style: const TextStyle(
+                          color: _kInk,
+                          fontSize: 16.5,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Edição online restrita: apenas data e equipe.',
+                        style: TextStyle(
+                          color: _kMutedInk,
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      GestureDetector(
+                        onTap: saving
+                            ? null
+                            : () async {
+                                final picked = await showDatePicker(
+                                  context: modalContext,
+                                  initialDate: businessDate,
+                                  firstDate: DateTime(2020),
+                                  lastDate: DateTime.now().add(
+                                    const Duration(days: 365),
+                                  ),
+                                );
+                                if (picked == null) {
+                                  return;
+                                }
+                                setModalState(() {
+                                  businessDate = picked;
+                                });
+                              },
+                        child: InputDecorator(
+                          decoration: const InputDecoration(
+                            labelText: 'Data do RDO',
+                            border: OutlineInputBorder(),
+                            suffixIcon: Icon(Icons.calendar_today_rounded),
+                          ),
+                          child: Text(
+                            _formatDate(businessDate),
+                            style: const TextStyle(
+                              color: _kInk,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Row(
+                        children: <Widget>[
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: <Widget>[
+                                Text(
+                                  'Membros da equipe (${teamMembers.length})',
+                                  style: const TextStyle(
+                                    color: _kMutedInk,
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                const Text(
+                                  'Ajuste somente quem atuou neste RDO.',
+                                  style: TextStyle(
+                                    color: _kMutedInk,
+                                    fontSize: 11.8,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          TextButton.icon(
+                            onPressed: saving || teamMembers.length >= 20
+                                ? null
+                                : () {
+                                    setModalState(() {
+                                      teamMembers.add(const _TeamMemberDraft());
+                                    });
+                                  },
+                            icon: const Icon(Icons.person_add_alt_1_rounded),
+                            label: const Text('Adicionar'),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      ...teamMembers.asMap().entries.map((entry) {
+                        final index = entry.key;
+                        final row = entry.value;
+                        final personOptions = _ensureChoiceContainsForEdit(
+                          personChoices,
+                          row.nome,
+                        );
+                        final functionOptions = _ensureChoiceContainsForEdit(
+                          functionChoices,
+                          row.funcao,
+                        );
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: _kCardBorder),
+                            borderRadius: BorderRadius.circular(10),
+                            color: const Color(0xFFF9FAFB),
+                          ),
+                          child: Column(
+                            children: <Widget>[
+                              Row(
+                                children: <Widget>[
+                                  Expanded(
+                                    child: Text(
+                                      'Membro ${index + 1}',
+                                      style: const TextStyle(
+                                        color: _kInk,
+                                        fontSize: 12.6,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                  IconButton(
+                                    tooltip: 'Remover membro',
+                                    onPressed: saving || teamMembers.length <= 1
+                                        ? null
+                                        : () {
+                                            setModalState(() {
+                                              teamMembers.removeAt(index);
+                                            });
+                                          },
+                                    icon: const Icon(
+                                      Icons.person_remove_alt_1_rounded,
+                                      size: 18,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              InkWell(
+                                borderRadius: BorderRadius.circular(6),
+                                onTap: saving
+                                    ? null
+                                    : () async {
+                                        final picked =
+                                            await _openChoicePickerForEdit(
+                                          title: 'Selecionar membro da equipe',
+                                          options: personOptions,
+                                          initialValue: row.nome,
+                                          allowManualValue: true,
+                                        );
+                                        if (picked == null) {
+                                          return;
+                                        }
+                                        final matched =
+                                            _findChoiceByValueForEdit(
+                                          picked.value,
+                                          personOptions,
+                                        );
+                                        setModalState(() {
+                                          teamMembers[index] = row.copyWith(
+                                            nome: matched?.label.trim().isNotEmpty ==
+                                                    true
+                                                ? matched!.label.trim()
+                                                : picked.value.trim(),
+                                            pessoaId: matched?.value ?? '',
+                                          );
+                                        });
+                                      },
+                                child: IgnorePointer(
+                                  child: _buildSearchableChoiceDecoratorForEdit(
+                                    labelText: 'Nome da pessoa',
+                                    hintText: 'Toque para buscar pessoa',
+                                    selectedLabel: row.nome.trim().isEmpty
+                                        ? ''
+                                        : (_findChoiceByValueForEdit(
+                                                  row.nome,
+                                                  personOptions,
+                                                )?.label ??
+                                                row.nome),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              InkWell(
+                                borderRadius: BorderRadius.circular(6),
+                                onTap: saving
+                                    ? null
+                                    : () async {
+                                        final picked =
+                                            await _openChoicePickerForEdit(
+                                          title: 'Selecionar função',
+                                          options: functionOptions,
+                                          initialValue: row.funcao,
+                                          allowManualValue: true,
+                                        );
+                                        if (picked == null) {
+                                          return;
+                                        }
+                                        final matched =
+                                            _findChoiceByValueForEdit(
+                                          picked.value,
+                                          functionOptions,
+                                        );
+                                        setModalState(() {
+                                          teamMembers[index] = row.copyWith(
+                                            funcao:
+                                                matched?.value ?? picked.value,
+                                          );
+                                        });
+                                      },
+                                child: IgnorePointer(
+                                  child: _buildSearchableChoiceDecoratorForEdit(
+                                    labelText: 'Função',
+                                    hintText: 'Toque para buscar função',
+                                    selectedLabel: row.funcao.trim().isEmpty
+                                        ? ''
+                                        : (_findChoiceByValueForEdit(
+                                                  row.funcao,
+                                                  functionOptions,
+                                                )?.label ??
+                                                row.funcao),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: <Widget>[
+                                  const Expanded(
+                                    child: Text(
+                                      'Em serviço neste RDO',
+                                      style: TextStyle(
+                                        color: _kMutedInk,
+                                        fontSize: 12.5,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                  Switch.adaptive(
+                                    value: row.emServico,
+                                    onChanged: saving
+                                        ? null
+                                        : (value) {
+                                            setModalState(() {
+                                              teamMembers[index] = row.copyWith(
+                                                emServico: value,
+                                              );
+                                            });
+                                          },
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        );
+                      }),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: <Widget>[
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: saving
+                                  ? null
+                                  : () => Navigator.of(modalContext).pop(),
+                              child: const Text('Cancelar'),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: FilledButton.icon(
+                              onPressed: saving
+                                  ? null
+                                  : () async {
+                                      final navigator =
+                                          Navigator.of(modalContext);
+                                      setModalState(() {
+                                        saving = true;
+                                      });
+                                      final saved = await _saveServerRdoEdit(
+                                        option: option,
+                                        businessDate: businessDate,
+                                        teamMembers: teamMembers,
+                                      );
+                                      if (!mounted) {
+                                        return;
+                                      }
+                                      if (!saved) {
+                                        setModalState(() {
+                                          saving = false;
+                                        });
+                                        return;
+                                      }
+                                      if (navigator.canPop()) {
+                                        navigator.pop();
+                                      }
+                                      await _loadAssignedOs(showLoading: false);
+                                      if (!mounted) {
+                                        return;
+                                      }
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            '${_serverRdoLabel(option)} atualizado com sucesso.',
+                                          ),
+                                        ),
+                                      );
+                                    },
+                              style: FilledButton.styleFrom(
+                                backgroundColor: AppTheme.supervisorLime,
+                                foregroundColor: _kInk,
+                              ),
+                              icon: saving
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: _kInk,
+                                      ),
+                                    )
+                                  : const Icon(Icons.save_rounded),
+                              label: const Text('Salvar edição'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _onEditRdoPressed(AssignedOsItem assigned) async {
+    if (!_isOnlineRdoEditConfigured()) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Edição online indisponível: verifique sessão/configuração do app.',
+            ),
+          ),
+        );
+      }
+      return;
+    }
+
+    if (!_hasNetworkConnectivity) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Conecte-se à internet para editar um RDO já lançado.'),
+          ),
+        );
+      }
+      return;
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Carregando RDOs lançados...')),
+      );
+    }
+    final options = await _loadRdosForOs(assigned);
+    if (!mounted) {
+      return;
+    }
+    if (options.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Nenhum RDO online disponível para edição nesta OS.'),
+        ),
+      );
+      return;
+    }
+
+    final selected = await _pickRdoForEdit(assigned, options);
+    if (!mounted || selected == null) {
+      return;
+    }
+    await _openEditRdoSheet(assigned, selected);
   }
 
   Future<List<_ServerRdoOption>?> _pickRdosForExport(
@@ -3630,6 +4717,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         : _resolveStartBlockReason(activeAssignedOs, assignedItems);
     final canExportPdf = activeAssignedOs != null;
     final onlinePdfConfigured = _isOnlinePdfExportConfigured();
+    final editRdoUnavailableReason = _editRdoUnavailableReason();
 
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
@@ -3807,6 +4895,48 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               icon: const Icon(Icons.picture_as_pdf_rounded),
               label: const Text('Exportar RDO em PDF'),
             ),
+            if (_kHomologationMode) ...<Widget>[
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: _controller.busy || editRdoUnavailableReason != null
+                    ? null
+                    : () => _onEditRdoPressed(activeAssignedOs),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(42),
+                  foregroundColor: _kInk,
+                  side: const BorderSide(color: _kCardBorder),
+                ),
+                icon: const Icon(Icons.edit_note_rounded),
+                label: const Text('Editar RDO'),
+              ),
+              if (editRdoUnavailableReason != null) ...<Widget>[
+                const SizedBox(height: 7),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    const Padding(
+                      padding: EdgeInsets.only(top: 1),
+                      child: Icon(
+                        Icons.wifi_off_rounded,
+                        size: 14,
+                        color: _kMutedInk,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        editRdoUnavailableReason,
+                        style: const TextStyle(
+                          color: _kMutedInk,
+                          fontSize: 11.6,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ],
             if (startBlockReason != null) ...<Widget>[
               const SizedBox(height: 8),
               Text(
@@ -11231,11 +12361,15 @@ class _ServerRdoOption {
     required this.id,
     required this.sequence,
     required this.businessDate,
+    this.teamMembers = const <_TeamMemberDraft>[],
+    this.reportedPob,
   });
 
   final int id;
   final int sequence;
   final DateTime? businessDate;
+  final List<_TeamMemberDraft> teamMembers;
+  final int? reportedPob;
 }
 
 class _LocalRdoExportSnapshot {
