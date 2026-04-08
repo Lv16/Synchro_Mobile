@@ -5,6 +5,7 @@ import 'package:uuid/uuid.dart';
 
 import '../domain/entities/pending_sync_item.dart';
 import '../domain/repositories/offline_rdo_repository.dart';
+import 'synced_item_cleanup.dart';
 
 class SharedPrefsOfflineRdoRepository implements OfflineRdoRepository {
   static const String _storageKey = 'rdo.mobile.offline_queue.v1';
@@ -63,9 +64,7 @@ class SharedPrefsOfflineRdoRepository implements OfflineRdoRepository {
   @override
   Future<void> clearSyncedItems() async {
     final items = await _readAll();
-    final filtered = items
-        .where((item) => item.state != SyncState.synced)
-        .toList(growable: false);
+    final filtered = pruneSyncedItemsKeepingDependencies(items);
     await _writeAll(filtered);
   }
 

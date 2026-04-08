@@ -7,6 +7,7 @@ import 'package:uuid/uuid.dart';
 
 import '../domain/entities/pending_sync_item.dart';
 import '../domain/repositories/offline_rdo_repository.dart';
+import 'synced_item_cleanup.dart';
 
 class SqliteOfflineRdoRepository implements OfflineRdoRepository {
   static const String _tableName = 'offline_sync_queue';
@@ -122,10 +123,20 @@ class SqliteOfflineRdoRepository implements OfflineRdoRepository {
   @override
   Future<void> clearSyncedItems() async {
     final db = await _db();
+    final items = await listQueue();
+    final filtered = pruneSyncedItemsKeepingDependencies(items);
+    final keepUuids = filtered.map((item) => item.clientUuid).toSet();
+    final allUuids = items.map((item) => item.clientUuid).toSet();
+    final removeUuids = allUuids.difference(keepUuids).toList(growable: false);
+    if (removeUuids.isEmpty) {
+      return;
+    }
+
+    final placeholders = List<String>.filled(removeUuids.length, '?').join(',');
     await db.delete(
       _tableName,
-      where: 'state = ?',
-      whereArgs: <Object?>[SyncState.synced.name],
+      where: 'client_uuid IN ($placeholders)',
+      whereArgs: removeUuids,
     );
   }
 

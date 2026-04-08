@@ -38,6 +38,11 @@ const Color _kWarning = Color(0xFFC2410C);
 const String _kMetaEntityAliasKey = '__entity_alias';
 const String _kMetaDependsOnKey = '__depends_on';
 const String _kLocalRefPrefix = '@local:';
+const String _kServerRefPrefix = '@ref:';
+final RegExp _kMissingDependenciesPattern = RegExp(
+  r'depend[êe]ncias ausentes:\s*(.+)$',
+  caseSensitive: false,
+);
 const int _kMaxRdoPhotos = 5;
 const bool _kHomologationMode = bool.fromEnvironment(
   'RDO_HOMOLOG_MODE',
@@ -1148,6 +1153,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _setSyncAttemptStatus(reason: reason, outcome: 'Sincronizando...');
 
     try {
+      await _repairOrphanedRdoDependenciesIfPossible();
       await _controller.syncQueuedItems();
       if (_hasBlockingAuthError()) {
         _setSyncAttemptStatus(
@@ -2158,7 +2164,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     if (text == 'true' || text == '1' || text == 'sim' || text == 'yes') {
       return true;
     }
-    if (text == 'false' || text == '0' || text == 'nao' || text == 'não' || text == 'no') {
+    if (text == 'false' ||
+        text == '0' ||
+        text == 'nao' ||
+        text == 'não' ||
+        text == 'no') {
       return false;
     }
     return null;
@@ -2319,6 +2329,174 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
   }
 
+  List<String> _extractMissingDependencyAliases(String? errorMessage) {
+    final raw = (errorMessage ?? '').trim();
+    if (raw.isEmpty) {
+      return const <String>[];
+    }
+    final match = _kMissingDependenciesPattern.firstMatch(raw);
+    if (match == null) {
+      return const <String>[];
+    }
+    final tail = (match.group(1) ?? '').trim();
+    if (tail.isEmpty) {
+      return const <String>[];
+    }
+    return tail
+        .split(RegExp(r'[,;]'))
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .toList(growable: false);
+  }
+
+  Map<String, dynamic> _replaceRecoveredRdoAliasesInPayload(
+    Map<String, dynamic> payload, {
+    required Set<String> aliases,
+    required int serverRdoId,
+  }) {
+    dynamic replaceValue(dynamic value) {
+      if (value is String) {
+        final raw = value.trim();
+        for (final alias in aliases) {
+          if (raw == '$_kLocalRefPrefix$alias' ||
+              raw == '$_kServerRefPrefix$alias') {
+            return '$serverRdoId';
+          }
+        }
+        return value;
+      }
+
+      if (value is List) {
+        return value.map(replaceValue).toList(growable: false);
+      }
+
+      if (value is Map) {
+        final out = <String, dynamic>{};
+        value.forEach((key, nestedValue) {
+          out['$key'] = replaceValue(nestedValue);
+        });
+        return out;
+      }
+
+      return value;
+    }
+
+    final out = <String, dynamic>{};
+    payload.forEach((key, value) {
+      if (key == _kMetaDependsOnKey) {
+        final filtered = <String>[];
+        if (value is List) {
+          for (final entry in value) {
+            final text = '$entry'.trim();
+            if (text.isNotEmpty && !aliases.contains(text)) {
+              filtered.add(text);
+            }
+          }
+        } else if (value is Map) {
+          for (final entry in value.values) {
+            final text = '$entry'.trim();
+            if (text.isNotEmpty && !aliases.contains(text)) {
+              filtered.add(text);
+            }
+          }
+        } else if (value != null) {
+          final text = '$value'.trim();
+          if (text.isNotEmpty && !aliases.contains(text)) {
+            filtered.add(text);
+          }
+        }
+        if (filtered.isNotEmpty) {
+          out[key] = filtered;
+        }
+        return;
+      }
+      out[key] = replaceValue(value);
+    });
+    return out;
+  }
+
+  Future<void> _repairOrphanedRdoDependenciesIfPossible() async {
+    if (!_hasNetworkConnectivity || !_isOnlineRdoEditConfigured()) {
+      return;
+    }
+
+    final queue = await widget.repository.listQueue();
+    final candidates = queue
+        .where((item) {
+          return item.state == SyncState.error ||
+              item.state == SyncState.conflict;
+        })
+        .toList(growable: false);
+    if (candidates.isEmpty) {
+      return;
+    }
+
+    final assignedByOs = <String, AssignedOsItem>{
+      for (final assigned in _assignedOsItems)
+        _normalizeOsNumber(assigned.osNumber): assigned,
+    };
+    final rdosByOsId = <int, List<_ServerRdoOption>>{};
+    var updatedAny = false;
+
+    for (final item in candidates) {
+      final missingAliases = _extractMissingDependencyAliases(item.lastError);
+      if (missingAliases.isEmpty) {
+        continue;
+      }
+      final rdoAliases = missingAliases
+          .where((alias) => alias.toLowerCase().startsWith('rdo_'))
+          .toSet();
+      if (rdoAliases.isEmpty) {
+        continue;
+      }
+
+      final assigned = assignedByOs[_normalizeOsNumber(item.osNumber)];
+      if (assigned == null) {
+        continue;
+      }
+
+      final options = rdosByOsId[assigned.id] ??= await _loadRdosForOs(
+        assigned,
+      );
+      if (options.isEmpty) {
+        continue;
+      }
+
+      _ServerRdoOption? serverRdo;
+      for (final option in options) {
+        if (option.sequence == item.rdoSequence) {
+          serverRdo = option;
+          break;
+        }
+      }
+      if (serverRdo == null || serverRdo.id <= 0) {
+        continue;
+      }
+
+      final repairedPayload = _replaceRecoveredRdoAliasesInPayload(
+        item.payload,
+        aliases: rdoAliases,
+        serverRdoId: serverRdo.id,
+      );
+      if (jsonEncode(repairedPayload) == jsonEncode(item.payload)) {
+        continue;
+      }
+
+      await widget.repository.upsert(
+        item.copyWith(
+          payload: repairedPayload,
+          state: SyncState.queued,
+          clearLastError: true,
+        ),
+      );
+      updatedAny = true;
+    }
+
+    if (updatedAny) {
+      await _controller.loadQueue();
+    }
+  }
+
   bool _isOnlineRdoEditConfigured() {
     return widget.mobileRdoPageBaseUrl != null &&
         widget.mobileOsRdosBaseUrl != null &&
@@ -2417,14 +2595,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           var query = initialValue.trim();
           return StatefulBuilder(
             builder: (pickerContext, setPickerState) {
-              final filtered = options.where((item) {
-                final q = query.trim().toLowerCase();
-                if (q.isEmpty) {
-                  return true;
-                }
-                return item.label.toLowerCase().contains(q) ||
-                    item.value.toLowerCase().contains(q);
-              }).toList(growable: false);
+              final filtered = options
+                  .where((item) {
+                    final q = query.trim().toLowerCase();
+                    if (q.isEmpty) {
+                      return true;
+                    }
+                    return item.label.toLowerCase().contains(q) ||
+                        item.value.toLowerCase().contains(q);
+                  })
+                  .toList(growable: false);
 
               return FractionallySizedBox(
                 heightFactor: 0.82,
@@ -2499,8 +2679,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                     const Divider(height: 1),
                                 itemBuilder: (_, index) {
                                   final item = filtered[index];
-                                  final subtitle = item.value.trim() ==
-                                          item.label.trim()
+                                  final subtitle =
+                                      item.value.trim() == item.label.trim()
                                       ? ''
                                       : item.value.trim();
                                   return ListTile(
@@ -2546,7 +2726,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     int? reportedPob,
   }) {
     final normalized = _normalizeTeamMembers(teamMembers);
-    final total = normalized.isNotEmpty ? normalized.length : (reportedPob ?? 0);
+    final total = normalized.isNotEmpty
+        ? normalized.length
+        : (reportedPob ?? 0);
     if (total <= 0) {
       return 'Sem equipe registrada';
     }
@@ -2582,10 +2764,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final normalized = _normalizeTeamMembers(teamMembers);
     if (normalized.isEmpty) {
       if ((reportedPob ?? 0) > 0) {
-        return _buildTeamCountLabel(
-          teamMembers,
-          reportedPob: reportedPob,
-        );
+        return _buildTeamCountLabel(teamMembers, reportedPob: reportedPob);
       }
       return 'Sem equipe registrada';
     }
@@ -2598,10 +2777,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       }
       return supervisorName;
     }
-    return _buildTeamCountLabel(
-      teamMembers,
-      reportedPob: reportedPob,
-    );
+    return _buildTeamCountLabel(teamMembers, reportedPob: reportedPob);
   }
 
   String _buildTeamSecondaryLabel(
@@ -2609,12 +2785,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     int? reportedPob,
   }) {
     final normalized = _normalizeTeamMembers(teamMembers);
-    final total = normalized.isNotEmpty ? normalized.length : (reportedPob ?? 0);
+    final total = normalized.isNotEmpty
+        ? normalized.length
+        : (reportedPob ?? 0);
     if (total <= 0) {
       return 'Sem equipe registrada';
     }
     final supervisor = _findSupervisorTeamMember(teamMembers);
-    final hasSupervisor = supervisor != null &&
+    final hasSupervisor =
+        supervisor != null &&
         supervisor.nome.trim().isNotEmpty &&
         supervisor.funcao.trim().toUpperCase().contains('SUPERVISOR');
     final remaining = hasSupervisor ? total - 1 : total;
@@ -2667,8 +2846,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 Expanded(
                   child: ListView.separated(
                     itemCount: options.length,
-                    separatorBuilder: (_, context) =>
-                        const SizedBox(height: 8),
+                    separatorBuilder: (_, context) => const SizedBox(height: 8),
                     itemBuilder: (_, index) {
                       final option = options[index];
                       final teamPrimaryLabel = _buildTeamPrimaryLabel(
@@ -2711,7 +2889,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                       ),
                                     ),
                                   ),
-                                  const Icon(Icons.edit_note_rounded, color: _kInk),
+                                  const Icon(
+                                    Icons.edit_note_rounded,
+                                    color: _kInk,
+                                  ),
                                 ],
                               ),
                               const SizedBox(height: 8),
@@ -2808,7 +2989,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     if (uri == null) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Endpoint de edição do RDO não configurado.')),
+          const SnackBar(
+            content: Text('Endpoint de edição do RDO não configurado.'),
+          ),
         );
       }
       return false;
@@ -2818,10 +3001,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       ..._mobileAuthHeaders(),
       'Content-Type': 'application/json',
     };
-    if (headers['Authorization'] == null || headers['Authorization']!.trim().isEmpty) {
+    if (headers['Authorization'] == null ||
+        headers['Authorization']!.trim().isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Sessão do app indisponível para editar o RDO.')),
+          const SnackBar(
+            content: Text('Sessão do app indisponível para editar o RDO.'),
+          ),
         );
       }
       return false;
@@ -2863,9 +3049,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             ? '${decoded['error'] ?? 'Falha ao editar o RDO.'}'
             : 'Falha ao editar o RDO.';
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(errorMessage)),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(errorMessage)));
         }
         return false;
       }
@@ -2874,9 +3060,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             ? '${decoded['error'] ?? 'Falha ao editar o RDO.'}'
             : 'Falha ao editar o RDO.';
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(errorMessage)),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(errorMessage)));
         }
         return false;
       }
@@ -3085,22 +3271,26 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                     : () async {
                                         final picked =
                                             await _openChoicePickerForEdit(
-                                          title: 'Selecionar membro da equipe',
-                                          options: personOptions,
-                                          initialValue: row.nome,
-                                          allowManualValue: true,
-                                        );
+                                              title:
+                                                  'Selecionar membro da equipe',
+                                              options: personOptions,
+                                              initialValue: row.nome,
+                                              allowManualValue: true,
+                                            );
                                         if (picked == null) {
                                           return;
                                         }
                                         final matched =
                                             _findChoiceByValueForEdit(
-                                          picked.value,
-                                          personOptions,
-                                        );
+                                              picked.value,
+                                              personOptions,
+                                            );
                                         setModalState(() {
                                           teamMembers[index] = row.copyWith(
-                                            nome: matched?.label.trim().isNotEmpty ==
+                                            nome:
+                                                matched?.label
+                                                        .trim()
+                                                        .isNotEmpty ==
                                                     true
                                                 ? matched!.label.trim()
                                                 : picked.value.trim(),
@@ -3115,10 +3305,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                     selectedLabel: row.nome.trim().isEmpty
                                         ? ''
                                         : (_findChoiceByValueForEdit(
-                                                  row.nome,
-                                                  personOptions,
-                                                )?.label ??
-                                                row.nome),
+                                                row.nome,
+                                                personOptions,
+                                              )?.label ??
+                                              row.nome),
                                   ),
                                 ),
                               ),
@@ -3130,19 +3320,19 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                     : () async {
                                         final picked =
                                             await _openChoicePickerForEdit(
-                                          title: 'Selecionar função',
-                                          options: functionOptions,
-                                          initialValue: row.funcao,
-                                          allowManualValue: true,
-                                        );
+                                              title: 'Selecionar função',
+                                              options: functionOptions,
+                                              initialValue: row.funcao,
+                                              allowManualValue: true,
+                                            );
                                         if (picked == null) {
                                           return;
                                         }
                                         final matched =
                                             _findChoiceByValueForEdit(
-                                          picked.value,
-                                          functionOptions,
-                                        );
+                                              picked.value,
+                                              functionOptions,
+                                            );
                                         setModalState(() {
                                           teamMembers[index] = row.copyWith(
                                             funcao:
@@ -3157,10 +3347,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                     selectedLabel: row.funcao.trim().isEmpty
                                         ? ''
                                         : (_findChoiceByValueForEdit(
-                                                  row.funcao,
-                                                  functionOptions,
-                                                )?.label ??
-                                                row.funcao),
+                                                row.funcao,
+                                                functionOptions,
+                                              )?.label ??
+                                              row.funcao),
                                   ),
                                 ),
                               ),
@@ -3212,8 +3402,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                               onPressed: saving
                                   ? null
                                   : () async {
-                                      final navigator =
-                                          Navigator.of(modalContext);
+                                      final navigator = Navigator.of(
+                                        modalContext,
+                                      );
                                       setModalState(() {
                                         saving = true;
                                       });
@@ -3238,7 +3429,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                       if (!mounted) {
                                         return;
                                       }
-                                      ScaffoldMessenger.of(context).showSnackBar(
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
                                         SnackBar(
                                           content: Text(
                                             '${_serverRdoLabel(option)} atualizado com sucesso.',
@@ -3294,7 +3487,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Conecte-se à internet para editar um RDO já lançado.'),
+            content: Text(
+              'Conecte-se à internet para editar um RDO já lançado.',
+            ),
           ),
         );
       }

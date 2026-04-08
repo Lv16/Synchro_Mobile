@@ -2,6 +2,7 @@ import 'package:uuid/uuid.dart';
 
 import '../domain/entities/pending_sync_item.dart';
 import '../domain/repositories/offline_rdo_repository.dart';
+import 'synced_item_cleanup.dart';
 
 class InMemoryOfflineRdoRepository implements OfflineRdoRepository {
   final Map<String, PendingSyncItem> _items = <String, PendingSyncItem>{};
@@ -34,7 +35,11 @@ class InMemoryOfflineRdoRepository implements OfflineRdoRepository {
 
   @override
   Future<void> clearSyncedItems() async {
-    _items.removeWhere((_, item) => item.state == SyncState.synced);
+    final filtered = pruneSyncedItemsKeepingDependencies(
+      _items.values.toList(),
+    );
+    final keepUuids = filtered.map((item) => item.clientUuid).toSet();
+    _items.removeWhere((uuid, _) => !keepUuids.contains(uuid));
   }
 
   @override
