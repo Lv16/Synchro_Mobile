@@ -33,6 +33,7 @@ class OfflineSyncController extends ChangeNotifier {
       .where(
         (item) =>
             item.state == SyncState.queued ||
+            item.state == SyncState.syncing ||
             item.state == SyncState.error ||
             item.state == SyncState.conflict,
       )

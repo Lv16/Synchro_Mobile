@@ -247,4 +247,47 @@ void main() {
       expect(controller.errorCount, 0);
     },
   );
+
+  test(
+    'reprocessa item que ficou preso como syncing em execucao anterior',
+    () async {
+      final repository = InMemoryOfflineRdoRepository();
+      final now = DateTime(2026, 4, 22);
+
+      await repository.upsert(
+        PendingSyncItem(
+          clientUuid: 'stale-syncing-create-6326-18',
+          operation: 'rdo.create',
+          osNumber: '6326',
+          rdoSequence: 18,
+          businessDate: now,
+          payload: const <String, dynamic>{
+            '__entity_alias': 'rdo_os275_seq18_123',
+            'ordem_servico_id': '275',
+            'rdo_contagem': '18',
+          },
+          state: SyncState.syncing,
+        ),
+      );
+
+      final gateway = _RecordingBatchGateway();
+      final controller = OfflineSyncController(repository, gateway);
+
+      await controller.loadQueue();
+      expect(controller.queuedCount, 1);
+
+      await controller.syncQueuedItems();
+
+      expect(gateway.lastBatchItems, hasLength(1));
+      expect(
+        gateway.lastBatchItems.first.clientUuid,
+        'stale-syncing-create-6326-18',
+      );
+
+      final queue = await repository.listQueue();
+      expect(queue, isEmpty);
+      expect(controller.queuedCount, 0);
+      expect(controller.errorCount, 0);
+    },
+  );
 }

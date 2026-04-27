@@ -69,9 +69,10 @@ class SqliteOfflineRdoRepository implements OfflineRdoRepository {
     final db = await _db();
     final rows = await db.query(
       _tableName,
-      where: 'state IN (?, ?, ?)',
+      where: 'state IN (?, ?, ?, ?)',
       whereArgs: <Object?>[
         SyncState.queued.name,
+        SyncState.syncing.name,
         SyncState.error.name,
         SyncState.conflict.name,
       ],

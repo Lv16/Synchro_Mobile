@@ -1055,8 +1055,17 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     return lines.join('\n');
   }
 
-  bool _hasBlockingAuthError() {
+  bool _hasBlockingAuthError({DateTime? updatedAfter}) {
     for (final item in _controller.items) {
+      if (!_isPendingState(item.state)) {
+        continue;
+      }
+      if (updatedAfter != null) {
+        final updatedAt = item.updatedAt;
+        if (updatedAt == null || updatedAt.isBefore(updatedAfter)) {
+          continue;
+        }
+      }
       final raw = item.lastError;
       if (raw == null || raw.trim().isEmpty) {
         continue;
@@ -1131,16 +1140,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     if (_controller.queuedCount <= 0) {
       return;
     }
-    if (_hasBlockingAuthError()) {
-      _setSyncAttemptStatus(
-        reason: reason,
-        outcome: 'Bloqueada por sessão expirada.',
-      );
-      await _triggerAuthRecovery(
-        reason: 'Sessão expirada. Faça login novamente para sincronizar.',
-      );
-      return;
-    }
 
     final now = DateTime.now();
     final last = _lastAutoSyncAt;
@@ -1153,9 +1152,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _setSyncAttemptStatus(reason: reason, outcome: 'Sincronizando...');
 
     try {
+      final syncStartedAt = DateTime.now();
       await _repairOrphanedRdoDependenciesIfPossible();
       await _controller.syncQueuedItems();
-      if (_hasBlockingAuthError()) {
+      if (_hasBlockingAuthError(updatedAfter: syncStartedAt)) {
         _setSyncAttemptStatus(
           reason: reason,
           outcome: 'Falhou: sessão expirada.',
@@ -5792,6 +5792,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   bool _isPendingState(SyncState state) {
     return state == SyncState.queued ||
+        state == SyncState.syncing ||
         state == SyncState.error ||
         state == SyncState.conflict;
   }
