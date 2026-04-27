@@ -5090,47 +5090,45 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               icon: const Icon(Icons.picture_as_pdf_rounded),
               label: const Text('Exportar RDO em PDF'),
             ),
-            if (_kHomologationMode) ...<Widget>[
-              const SizedBox(height: 8),
-              OutlinedButton.icon(
-                onPressed: _controller.busy || editRdoUnavailableReason != null
-                    ? null
-                    : () => _onEditRdoPressed(activeAssignedOs),
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size.fromHeight(42),
-                  foregroundColor: _kInk,
-                  side: const BorderSide(color: _kCardBorder),
-                ),
-                icon: const Icon(Icons.edit_note_rounded),
-                label: const Text('Editar RDO'),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: _controller.busy || editRdoUnavailableReason != null
+                  ? null
+                  : () => _onEditRdoPressed(activeAssignedOs),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(42),
+                foregroundColor: _kInk,
+                side: const BorderSide(color: _kCardBorder),
               ),
-              if (editRdoUnavailableReason != null) ...<Widget>[
-                const SizedBox(height: 7),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    const Padding(
-                      padding: EdgeInsets.only(top: 1),
-                      child: Icon(
-                        Icons.wifi_off_rounded,
-                        size: 14,
+              icon: const Icon(Icons.edit_note_rounded),
+              label: const Text('Editar RDO'),
+            ),
+            if (editRdoUnavailableReason != null) ...<Widget>[
+              const SizedBox(height: 7),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  const Padding(
+                    padding: EdgeInsets.only(top: 1),
+                    child: Icon(
+                      Icons.wifi_off_rounded,
+                      size: 14,
+                      color: _kMutedInk,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      editRdoUnavailableReason,
+                      style: const TextStyle(
                         color: _kMutedInk,
+                        fontSize: 11.6,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        editRdoUnavailableReason,
-                        style: const TextStyle(
-                          color: _kMutedInk,
-                          fontSize: 11.6,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+                  ),
+                ],
+              ),
             ],
             if (startBlockReason != null) ...<Widget>[
               const SizedBox(height: 8),
@@ -6351,26 +6349,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final translationTimers = <String, Timer>{};
     final translationVersions = <String, int>{};
 
-    _TankMode tankMode = tankCatalog.isNotEmpty
-        ? _TankMode.existing
-        : _TankMode.create;
-    String? selectedTankKey = tankCatalog.isNotEmpty
-        ? tankCatalog.first.key
-        : null;
+    _TankMode tankMode = _TankMode.existing;
+    String? selectedTankKey;
     final osTankLimit = _resolveTankCreationLimit(assigned);
     final knownOsTankKeys = _collectKnownTankIdentityKeys(
       assigned,
       tankCatalog,
     );
     final baseOsTankCount = _resolveCurrentOsTankCount(assigned, tankCatalog);
-
-    if (osTankLimit > 0 &&
-        baseOsTankCount >= osTankLimit &&
-        tankMode == _TankMode.create &&
-        tankCatalog.isNotEmpty) {
-      tankMode = _TankMode.existing;
-      selectedTankKey = tankCatalog.first.key;
-    }
 
     final observacoesController = TextEditingController();
     final planejamentoController = TextEditingController();
@@ -6487,20 +6473,44 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       return usedTankCountWithoutCurrentDraft() >= osTankLimit;
     }
 
-    int remainingTankCreationSlots() {
-      if (osTankLimit <= 0) {
-        return 0;
-      }
-      final remaining = osTankLimit - usedTankCountWithoutCurrentDraft();
-      return remaining > 0 ? remaining : 0;
-    }
-
     String tankLimitReachedMessage() {
       final used = usedTankCountWithoutCurrentDraft();
       if (osTankLimit <= 0) {
         return 'Limite de tanques da OS atingido.';
       }
       return 'Limite de $osTankLimit tanque(s) para esta OS atingido ($used/$osTankLimit).';
+    }
+
+    Set<String> stagedSelectedTankKeys() {
+      if (stagedTankDrafts.isEmpty) {
+        return const <String>{};
+      }
+      final keys = <String>{};
+      for (final draft in stagedTankDrafts) {
+        final existing = draft.existingTank;
+        if (existing != null) {
+          keys.add(existing.key);
+          continue;
+        }
+        final logicalKey = _buildTankIdentityKey(
+          draft.tanqueCodigo,
+          draft.tanqueNome,
+        );
+        if (logicalKey != null) {
+          keys.add(logicalKey);
+        }
+      }
+      return keys;
+    }
+
+    List<_TankCatalogOption> availableTankSelectionOptions() {
+      if (tankCatalog.isEmpty) {
+        return const <_TankCatalogOption>[];
+      }
+      final stagedKeys = stagedSelectedTankKeys();
+      return tankCatalog
+          .where((item) => !stagedKeys.contains(item.key))
+          .toList(growable: false);
     }
 
     double parseNumber(dynamic value) {
@@ -7370,7 +7380,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
 
     bool fixedFieldsLockedForSelectedTank() {
-      return tankMode == _TankMode.existing;
+      return false;
     }
 
     List<int> sortedSelectedCompartimentos() {
@@ -7389,13 +7399,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         tank: selected,
         tanqueCodigo: selected.tanqueCodigo,
         tanqueNome: selected.tanqueNome,
-        tipoTanque: selected.tipoTanque,
-        numeroCompartimentos: selected.numeroCompartimentos,
-        gavetas: selected.gavetas,
-        patamares: selected.patamares,
-        volumeTanqueExec: selected.volumeTanqueExec,
-        servicoExec: selected.servicoExec,
-        metodoExec: selected.metodoExec,
+        tipoTanque: tipoTanque,
+        numeroCompartimentos: tanqueCompartimentosController.text,
+        gavetas: tanqueGavetasController.text,
+        patamares: tanquePatamarController.text,
+        volumeTanqueExec: tanqueVolumeController.text,
+        servicoExec: tanqueServicoController.text,
+        metodoExec: tanqueMetodoController.text,
         espacoConfinado: espacoConfinado,
         operadoresSimultaneos: operadoresController.text,
         h2sPpm: h2sController.text,
@@ -7656,6 +7666,27 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       recomputeOperational();
     }
 
+    bool currentSelectedTankAlreadyAdded() {
+      final selected = selectedTankOption();
+      if (selected == null) {
+        return false;
+      }
+      return stagedSelectedTankKeys().contains(selected.key);
+    }
+
+    String noConfiguredTankMessage() {
+      return 'Esta OS não possui tanque configurado pelo Coordenador..';
+    }
+
+    String noRemainingTankMessage() {
+      return 'Todos os tanques configurados desta OS já foram adicionados neste RDO.';
+    }
+
+    void selectNextAvailableTankOrClear() {
+      selectedTankKey = null;
+      clearTankFieldsForNew();
+    }
+
     bool hasCurrentTankInput() {
       if (tankMode == _TankMode.none) {
         return false;
@@ -7758,16 +7789,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       final codigo = tanqueCodigoController.text.trim();
       final nome = tanqueNomeController.text.trim();
 
-      if (tankMode == _TankMode.none) {
-        if (requireTank) {
-          setModalState(() {
-            error = 'Selecione ou cadastre um tanque para continuar.';
-          });
-          return null;
-        }
-        return const _TankDraft.none();
-      }
-
       if (ptAbertura == 'nao') {
         ptTurnos.clear();
       }
@@ -7778,13 +7799,26 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       recomputeCompartimentos();
 
       if (tankMode == _TankMode.existing) {
+        final availableOptions = availableTankSelectionOptions();
+        if (tankCatalog.isEmpty) {
+          return const _TankDraft.none();
+        }
         final selected = selectedTankOption();
         if (selected == null) {
           if (!requireTank && !hasInput) {
             return const _TankDraft.none();
           }
           setModalState(() {
-            error = 'Selecione um tanque existente.';
+            error = availableOptions.isEmpty
+                ? noRemainingTankMessage()
+                : 'Selecione um tanque configurado na Home.';
+          });
+          return null;
+        }
+        if (currentSelectedTankAlreadyAdded()) {
+          setModalState(() {
+            error =
+                'Este tanque já foi adicionado neste RDO. Selecione outro tanque configurado.';
           });
           return null;
         }
@@ -7826,10 +7860,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       return buildNewTankDraft(codigo: codigo, nome: nome);
     }
 
-    final firstTank = selectedTankOption();
-    if (firstTank != null) {
-      applyTankSnapshot(firstTank);
-    }
     ensacamentoPrevController.addListener(syncForecastFields);
     syncForecastFields();
     recomputeOperational();
@@ -7873,42 +7903,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                       ),
                     ];
               final predictionsLocked = predictionsLockedForSelectedTank();
-              final hasCurrentTankDraftInput = hasCurrentTankInput();
-              final tankLimitEnabled = osTankLimit > 0;
-              final usedTankCount = usedTankCountWithoutCurrentDraft();
-              final tankCreationLocked =
-                  tankLimitEnabled && usedTankCount >= osTankLimit;
-              final remainingTankSlots = remainingTankCreationSlots();
-              final currentTankPosition = stagedTankDrafts.length + 1;
-              final totalTankPreview = tankLimitEnabled
-                  ? osTankLimit
-                  : stagedTankDrafts.length + 1;
-              final addedTankCount = stagedTankDrafts.length;
-              final usedTankCountDisplay =
-                  tankLimitEnabled && usedTankCount > osTankLimit
-                  ? osTankLimit
-                  : usedTankCount;
-
-              String tankProgressSubtitle() {
-                if (tankLimitEnabled && tankCreationLocked) {
-                  return 'Limite de tanques atingido para novos cadastros.';
-                }
-                if (tankLimitEnabled && remainingTankSlots > 0) {
-                  final suffix = remainingTankSlots == 1 ? '' : 's';
-                  return 'Restam $remainingTankSlots vaga$suffix para criar novo tanque nesta OS.';
-                }
-                if (addedTankCount == 0 && !hasCurrentTankDraftInput) {
-                  return 'Preencha os dados do primeiro tanque.';
-                }
-                if (addedTankCount == 0 && hasCurrentTankDraftInput) {
-                  return 'Primeiro tanque em edição.';
-                }
-                if (!hasCurrentTankDraftInput) {
-                  return 'Próximo tanque aguardando preenchimento.';
-                }
-                return 'Tanque atual pronto para adicionar ou salvar.';
-              }
-
+              final availableSelectionTanks = availableTankSelectionOptions();
               Widget sectionTitle(String value, {String? subtitle}) {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -7984,6 +7979,258 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                       ),
                     ),
                   ],
+                );
+              }
+
+              Widget tankMetaChip({
+                required IconData icon,
+                required String label,
+                Color background = const Color(0xFFF3F4F6),
+                Color foreground = _kInk,
+              }) {
+                return Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: background,
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: _kCardBorder),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Icon(icon, size: 13, color: foreground),
+                      const SizedBox(width: 5),
+                      Flexible(
+                        child: Text(
+                          label,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: foreground,
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+
+              Widget tankSelectionStatusCard() {
+                final currentTank = selectedTankOption();
+                if (tankCatalog.isEmpty) {
+                  return Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: _kCardBorder),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE2E8F0),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(
+                            Icons.layers_clear_rounded,
+                            color: _kInk,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Text(
+                                'RDO sem tanque',
+                                style: TextStyle(
+                                  color: _kInk,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              SizedBox(height: 4),
+                              Text(
+                                'Esta OS não possui tanque configurado na Home. O preenchimento continua normalmente sem tanque.',
+                                style: TextStyle(
+                                  color: _kMutedInk,
+                                  fontSize: 12.4,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                if (currentTank == null) {
+                  return Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFFDEA),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: AppTheme.supervisorLime.withValues(alpha: 0.55),
+                      ),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            color: AppTheme.supervisorLime,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(
+                            Icons.touch_app_rounded,
+                            color: _kInk,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Text(
+                                'Selecione o tanque se precisar',
+                                style: TextStyle(
+                                  color: _kInk,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              SizedBox(height: 4),
+                              Text(
+                                'Se este RDO não tiver lançamento por tanque, continue normalmente sem selecionar.',
+                                style: TextStyle(
+                                  color: _kMutedInk,
+                                  fontSize: 12.4,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                final metaWidgets = <Widget>[];
+                if (currentTank.tipoTanque.trim().isNotEmpty) {
+                  metaWidgets.add(
+                    tankMetaChip(
+                      icon: Icons.category_rounded,
+                      label: currentTank.tipoTanque.trim(),
+                      background: const Color(0xFF1F2937),
+                      foreground: Colors.white,
+                    ),
+                  );
+                }
+                if (currentTank.numeroCompartimentos.trim().isNotEmpty) {
+                  metaWidgets.add(
+                    tankMetaChip(
+                      icon: Icons.view_week_rounded,
+                      label:
+                          '${currentTank.numeroCompartimentos.trim()} compart.',
+                      background: const Color(0xFF1F2937),
+                      foreground: Colors.white,
+                    ),
+                  );
+                }
+                if (currentTank.metodoExec.trim().isNotEmpty) {
+                  metaWidgets.add(
+                    tankMetaChip(
+                      icon: Icons.settings_suggest_rounded,
+                      label: currentTank.metodoExec.trim(),
+                      background: const Color(0xFF1F2937),
+                      foreground: Colors.white,
+                    ),
+                  );
+                }
+
+                return Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF111827),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: AppTheme.supervisorLime.withValues(alpha: 0.45),
+                    ),
+                    boxShadow: const <BoxShadow>[
+                      BoxShadow(
+                        color: Color(0x14000000),
+                        blurRadius: 12,
+                        offset: Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Row(
+                        children: <Widget>[
+                          Container(
+                            width: 42,
+                            height: 42,
+                            decoration: BoxDecoration(
+                              color: AppTheme.supervisorLime,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(
+                              Icons.inventory_2_rounded,
+                              color: _kInk,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: <Widget>[
+                                Text(
+                                  'Tanque em preenchimento',
+                                  style: TextStyle(
+                                    color: Colors.white.withValues(alpha: 0.78),
+                                    fontSize: 11.4,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  currentTank.label,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16.4,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (metaWidgets.isNotEmpty) ...<Widget>[
+                        const SizedBox(height: 10),
+                        Wrap(spacing: 8, runSpacing: 8, children: metaWidgets),
+                      ],
+                    ],
+                  ),
                 );
               }
 
@@ -8312,6 +8559,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                             fontWeight: FontWeight.w600,
                           ),
                         ),
+                        const SizedBox(height: 14),
+                        tankSelectionStatusCard(),
                         const SizedBox(height: 14),
                         GestureDetector(
                           onTap: () async {
@@ -8988,176 +9237,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                           child: sectionTitle(
                             'Tanque',
                             subtitle:
-                                'Selecione um tanque existente ou informe os dados para cadastrar um novo.',
+                                'Selecione apenas se este RDO tiver lançamento por tanque.',
                           ),
                         ),
                         const SizedBox(height: 8),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: <Widget>[
-                            ChoiceChip(
-                              label: const Text('Sem tanque'),
-                              selected: tankMode == _TankMode.none,
-                              onSelected: (_) {
-                                setModalState(() {
-                                  tankMode = _TankMode.none;
-                                });
-                              },
-                            ),
-                            ChoiceChip(
-                              label: const Text('Selecionar existente'),
-                              selected: tankMode == _TankMode.existing,
-                              onSelected: (_) {
-                                setModalState(() {
-                                  tankMode = _TankMode.existing;
-                                  selectedTankKey ??= tankCatalog.isNotEmpty
-                                      ? tankCatalog.first.key
-                                      : null;
-                                  applyTankSnapshot(selectedTankOption());
-                                });
-                              },
-                            ),
-                            ChoiceChip(
-                              label: const Text('Criar tanque'),
-                              selected: tankMode == _TankMode.create,
-                              onSelected: tankCreationLocked
-                                  ? null
-                                  : (_) {
-                                      setModalState(() {
-                                        tankMode = _TankMode.create;
-                                        clearTankFieldsForNew();
-                                      });
-                                    },
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          tankMode == _TankMode.none
-                              ? 'Sem tanque: o RDO será salvo somente com dados gerais.'
-                              : tankMode == _TankMode.existing
-                              ? 'Modo selecionado: usar tanque já cadastrado na OS.'
-                              : tankCreationLocked
-                              ? 'Limite de tanques da OS atingido. Cadastro de novo tanque bloqueado.'
-                              : 'Modo selecionado: cadastrar um novo tanque para esta OS.',
-                          style: const TextStyle(
-                            color: _kMutedInk,
-                            fontSize: 12.2,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        if (tankLimitEnabled) ...<Widget>[
-                          const SizedBox(height: 8),
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 8,
-                            ),
-                            decoration: BoxDecoration(
-                              color: tankCreationLocked
-                                  ? const Color(0xFFFFF7ED)
-                                  : const Color(0xFFF0FDF4),
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(
-                                color: tankCreationLocked
-                                    ? const Color(0xFFFED7AA)
-                                    : const Color(0xFFBBF7D0),
-                              ),
-                            ),
-                            child: Text(
-                              tankCreationLocked
-                                  ? 'Tanques da OS: $usedTankCountDisplay/$osTankLimit. Não é permitido cadastrar novos tanques.'
-                                  : 'Tanques da OS: $usedTankCountDisplay/$osTankLimit. Restam $remainingTankSlots vaga(s) para novo tanque.',
-                              style: TextStyle(
-                                color: tankCreationLocked
-                                    ? const Color(0xFF9A3412)
-                                    : const Color(0xFF166534),
-                                fontSize: 12.2,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                        ],
-                        if (tankMode != _TankMode.none) ...<Widget>[
-                          const SizedBox(height: 10),
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 9,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF8FAFC),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: _kCardBorder),
-                            ),
-                            child: Row(
-                              children: <Widget>[
-                                Container(
-                                  width: 30,
-                                  height: 30,
-                                  decoration: BoxDecoration(
-                                    color: AppTheme.supervisorLime,
-                                    borderRadius: BorderRadius.circular(999),
-                                  ),
-                                  child: const Icon(
-                                    Icons.inventory_2_rounded,
-                                    size: 17,
-                                    color: _kInk,
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: <Widget>[
-                                      Text(
-                                        tankLimitEnabled
-                                            ? 'Tanques da OS: $usedTankCountDisplay de $osTankLimit'
-                                            : 'Tanque $currentTankPosition de $totalTankPreview',
-                                        style: const TextStyle(
-                                          color: _kInk,
-                                          fontSize: 12.8,
-                                          fontWeight: FontWeight.w800,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        tankProgressSubtitle(),
-                                        style: const TextStyle(
-                                          color: _kMutedInk,
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 5,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFE2E8F0),
-                                    borderRadius: BorderRadius.circular(999),
-                                  ),
-                                  child: Text(
-                                    '$addedTankCount adicionados',
-                                    style: const TextStyle(
-                                      color: _kInk,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
                         if (stagedTankDrafts.isNotEmpty) ...<Widget>[
                           const SizedBox(height: 10),
                           Container(
@@ -9242,133 +9325,421 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                             ),
                           ),
                         ],
-                        if (tankMode == _TankMode.none)
-                          const Padding(
-                            padding: EdgeInsets.only(top: 10),
-                            child: Text(
-                              'RDO será salvo sem tanque associado.',
-                              style: TextStyle(
-                                color: _kMutedInk,
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w600,
+                        const SizedBox(height: 10),
+                        if (tankCatalog.isEmpty)
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 10,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFFF7ED),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: const Color(0xFFFED7AA),
                               ),
                             ),
-                          ),
-                        if (tankMode == _TankMode.existing) ...<Widget>[
-                          const SizedBox(height: 10),
-                          if (tankCatalog.isEmpty)
-                            const Text(
-                              'Nenhum tanque disponível para seleção nesta OS.',
-                              style: TextStyle(
-                                color: _kMutedInk,
+                            child: Text(
+                              noConfiguredTankMessage(),
+                              style: const TextStyle(
+                                color: Color(0xFF9A3412),
                                 fontSize: 12.5,
-                                fontWeight: FontWeight.w600,
+                                fontWeight: FontWeight.w700,
                               ),
-                            )
-                          else
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 10,
-                              ),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFF8FAFC),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: _kCardBorder),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: <Widget>[
-                                  const Text(
-                                    'Tanques cadastrados nesta OS',
-                                    style: TextStyle(
-                                      color: _kInk,
-                                      fontSize: 12.6,
-                                      fontWeight: FontWeight.w800,
-                                    ),
+                            ),
+                          )
+                        else ...<Widget>[
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 10,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF8FAFC),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: _kCardBorder),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: <Widget>[
+                                const Text(
+                                  'Escolha o tanque',
+                                  style: TextStyle(
+                                    color: _kInk,
+                                    fontSize: 12.6,
+                                    fontWeight: FontWeight.w800,
                                   ),
-                                  const SizedBox(height: 8),
-                                  Wrap(
-                                    spacing: 8,
-                                    runSpacing: 8,
-                                    children: tankCatalog
+                                ),
+                                const SizedBox(height: 8),
+                                if (availableSelectionTanks.isEmpty)
+                                  Text(
+                                    stagedTankDrafts.isNotEmpty
+                                        ? noRemainingTankMessage()
+                                        : 'Nenhum tanque disponível para seleção nesta OS.',
+                                    style: const TextStyle(
+                                      color: _kMutedInk,
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  )
+                                else
+                                  Column(
+                                    children: availableSelectionTanks
                                         .map((item) {
                                           final selected =
                                               (selectedTankKey ?? '') ==
                                               item.key;
-                                          return ChoiceChip(
-                                            label: Text(item.label),
-                                            selected: selected,
-                                            onSelected: (_) {
-                                              setModalState(() {
-                                                selectedTankKey = item.key;
-                                                applyTankSnapshot(item);
-                                                error = null;
-                                              });
-                                            },
+                                          final subtitleParts = <String>[
+                                            if (item.servicoExec
+                                                .trim()
+                                                .isNotEmpty)
+                                              item.servicoExec.trim(),
+                                            if (item.metodoExec
+                                                .trim()
+                                                .isNotEmpty)
+                                              item.metodoExec.trim(),
+                                          ];
+                                          final specs = <Widget>[
+                                            if (item.tipoTanque
+                                                .trim()
+                                                .isNotEmpty)
+                                              tankMetaChip(
+                                                icon: Icons.category_rounded,
+                                                label: item.tipoTanque.trim(),
+                                                background: selected
+                                                    ? const Color(0xFF1F2937)
+                                                    : const Color(0xFFF3F4F6),
+                                                foreground: selected
+                                                    ? Colors.white
+                                                    : _kInk,
+                                              ),
+                                            if (item.numeroCompartimentos
+                                                .trim()
+                                                .isNotEmpty)
+                                              tankMetaChip(
+                                                icon: Icons.view_week_rounded,
+                                                label:
+                                                    '${item.numeroCompartimentos.trim()} compart.',
+                                                background: selected
+                                                    ? const Color(0xFF1F2937)
+                                                    : const Color(0xFFF3F4F6),
+                                                foreground: selected
+                                                    ? Colors.white
+                                                    : _kInk,
+                                              ),
+                                          ];
+                                          return Padding(
+                                            padding: const EdgeInsets.only(
+                                              bottom: 8,
+                                            ),
+                                            child: Material(
+                                              color: selected
+                                                  ? const Color(0xFF111827)
+                                                  : Colors.white,
+                                              borderRadius:
+                                                  BorderRadius.circular(14),
+                                              child: InkWell(
+                                                borderRadius:
+                                                    BorderRadius.circular(14),
+                                                onTap: () {
+                                                  var feedback =
+                                                      'Tanque selecionado.';
+                                                  setModalState(() {
+                                                    if (selected) {
+                                                      selectedTankKey = null;
+                                                      clearTankFieldsForNew();
+                                                      feedback =
+                                                          'Tanque desmarcado.';
+                                                    } else {
+                                                      selectedTankKey =
+                                                          item.key;
+                                                      applyTankSnapshot(item);
+                                                      feedback =
+                                                          'Tanque ${item.label} selecionado.';
+                                                    }
+                                                    error = null;
+                                                  });
+                                                  ScaffoldMessenger.of(
+                                                    context,
+                                                  ).hideCurrentSnackBar();
+                                                  ScaffoldMessenger.of(
+                                                    context,
+                                                  ).showSnackBar(
+                                                    SnackBar(
+                                                      content: Text(feedback),
+                                                      duration:
+                                                          const Duration(
+                                                            seconds: 2,
+                                                          ),
+                                                    ),
+                                                  );
+                                                },
+                                                child: Container(
+                                                  width: double.infinity,
+                                                  padding: const EdgeInsets.all(
+                                                    12,
+                                                  ),
+                                                  decoration: BoxDecoration(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          14,
+                                                        ),
+                                                    border: Border.all(
+                                                      color: selected
+                                                          ? AppTheme
+                                                                .supervisorLime
+                                                          : _kCardBorder,
+                                                      width: selected ? 1.6 : 1,
+                                                    ),
+                                                  ),
+                                                  child: Row(
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment
+                                                            .start,
+                                                    children: <Widget>[
+                                                      Container(
+                                                        width: 36,
+                                                        height: 36,
+                                                        decoration: BoxDecoration(
+                                                          color: selected
+                                                              ? AppTheme
+                                                                    .supervisorLime
+                                                              : const Color(
+                                                                  0xFFF3F4F6,
+                                                                ),
+                                                          borderRadius:
+                                                              BorderRadius.circular(
+                                                                10,
+                                                              ),
+                                                        ),
+                                                        child: Icon(
+                                                          selected
+                                                              ? Icons
+                                                                    .check_rounded
+                                                              : Icons
+                                                                    .anchor_rounded,
+                                                          color: _kInk,
+                                                        ),
+                                                      ),
+                                                      const SizedBox(width: 10),
+                                                      Expanded(
+                                                        child: Column(
+                                                          crossAxisAlignment:
+                                                              CrossAxisAlignment
+                                                                  .start,
+                                                          children: <Widget>[
+                                                            Text(
+                                                              item.label,
+                                                              style: TextStyle(
+                                                                color: selected
+                                                                    ? Colors
+                                                                          .white
+                                                                    : _kInk,
+                                                                fontSize: 13.8,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w800,
+                                                              ),
+                                                            ),
+                                                            if (subtitleParts
+                                                                .isNotEmpty) ...<
+                                                              Widget
+                                                            >[
+                                                              const SizedBox(
+                                                                height: 4,
+                                                              ),
+                                                              Text(
+                                                                subtitleParts
+                                                                    .join(
+                                                                      ' • ',
+                                                                    ),
+                                                                style: TextStyle(
+                                                                  color:
+                                                                      selected
+                                                                      ? Colors.white.withValues(
+                                                                          alpha:
+                                                                              0.78,
+                                                                        )
+                                                                      : _kMutedInk,
+                                                                  fontSize:
+                                                                      12.1,
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .w600,
+                                                                ),
+                                                              ),
+                                                            ],
+                                                            if (specs
+                                                                .isNotEmpty) ...<
+                                                              Widget
+                                                            >[
+                                                              const SizedBox(
+                                                                height: 8,
+                                                              ),
+                                                              Wrap(
+                                                                spacing: 8,
+                                                                runSpacing: 8,
+                                                                children: specs,
+                                                              ),
+                                                            ],
+                                                          ],
+                                                        ),
+                                                      ),
+                                                      const SizedBox(width: 8),
+                                                      Icon(
+                                                        selected
+                                                            ? Icons
+                                                                  .radio_button_checked_rounded
+                                                            : Icons
+                                                                  .radio_button_off_rounded,
+                                                        color: selected
+                                                            ? AppTheme
+                                                                  .supervisorLime
+                                                            : _kMutedInk,
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
                                           );
                                         })
                                         .toList(growable: false),
                                   ),
+                              ],
+                            ),
+                          ),
+                          if (selectedTankOption() != null) ...<Widget>[
+                            const SizedBox(height: 8),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF111827),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: AppTheme.supervisorLime.withValues(
+                                    alpha: 0.45,
+                                  ),
+                                ),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: <Widget>[
+                                  Text(
+                                    'Você está preenchendo agora',
+                                    style: TextStyle(
+                                      color: Colors.white.withValues(
+                                        alpha: 0.78,
+                                      ),
+                                      fontSize: 11.4,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    selectedTankOption()!.label,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Wrap(
+                                    spacing: 8,
+                                    runSpacing: 8,
+                                    children: <Widget>[
+                                      if (selectedTankOption()!.tanqueCodigo
+                                          .trim()
+                                          .isNotEmpty)
+                                        tankMetaChip(
+                                          icon: Icons.tag_rounded,
+                                          label: selectedTankOption()!
+                                              .tanqueCodigo
+                                              .trim(),
+                                          background: const Color(0xFF1F2937),
+                                          foreground: Colors.white,
+                                        ),
+                                      if (selectedTankOption()!.servicoExec
+                                          .trim()
+                                          .isNotEmpty)
+                                        tankMetaChip(
+                                          icon: Icons.build_circle_rounded,
+                                          label: selectedTankOption()!
+                                              .servicoExec
+                                              .trim(),
+                                          background: const Color(0xFF1F2937),
+                                          foreground: Colors.white,
+                                        ),
+                                      if (selectedTankOption()!.metodoExec
+                                          .trim()
+                                          .isNotEmpty)
+                                        tankMetaChip(
+                                          icon: Icons.settings_rounded,
+                                          label: selectedTankOption()!
+                                              .metodoExec
+                                              .trim(),
+                                          background: const Color(0xFF1F2937),
+                                          foreground: Colors.white,
+                                        ),
+                                    ],
+                                  ),
                                 ],
                               ),
                             ),
+                          ],
                         ],
-                        if (tankMode != _TankMode.none) ...<Widget>[
+                        if (selectedTankOption() != null) ...<Widget>[
                           const SizedBox(height: 8),
                           subsectionLabel(
                             'Identificação e características do tanque',
                             icon: Icons.inventory_2_rounded,
                           ),
                           const SizedBox(height: 8),
-                          if (fixedFieldsLockedForSelectedTank())
-                            const Padding(
-                              padding: EdgeInsets.only(bottom: 8),
-                              child: Text(
-                                'Este tanque já existe na OS. Os dados fixos de cadastro ficam bloqueados.',
-                                style: TextStyle(
-                                  color: _kMutedInk,
-                                  fontSize: 12.2,
-                                  fontWeight: FontWeight.w600,
-                                ),
+                          const Padding(
+                            padding: EdgeInsets.only(bottom: 8),
+                            child: Text(
+                              'O nome e o código do tanque são preenchidos pelo Coordenador. Os demais campos abaixo podem ser completados pelo supervisor no app.',
+                              style: TextStyle(
+                                color: _kMutedInk,
+                                fontSize: 12.2,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
-                          TextField(
-                            controller: tanqueCodigoController,
-                            readOnly:
-                                tankCreationLocked ||
-                                fixedFieldsLockedForSelectedTank(),
-                            textInputAction: TextInputAction.next,
-                            onChanged: (_) {
-                              setModalState(() {
-                                if (error != null && error!.trim().isNotEmpty) {
-                                  error = null;
-                                }
-                              });
-                            },
-                            decoration: const InputDecoration(
-                              labelText: 'Código do tanque (opcional)',
-                              border: OutlineInputBorder(),
-                            ),
                           ),
-                          const SizedBox(height: 10),
-                          TextField(
-                            controller: tanqueNomeController,
-                            readOnly:
-                                tankCreationLocked ||
-                                fixedFieldsLockedForSelectedTank(),
-                            textInputAction: TextInputAction.done,
-                            onChanged: (_) {
-                              setModalState(() {
-                                if (error != null && error!.trim().isNotEmpty) {
-                                  error = null;
-                                }
-                              });
-                            },
-                            decoration: const InputDecoration(
-                              labelText: 'Nome do tanque',
-                              border: OutlineInputBorder(),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF8FAFC),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: _kCardBorder),
+                            ),
+                            child: Row(
+                              children: <Widget>[
+                                const Icon(
+                                  Icons.visibility_rounded,
+                                  size: 16,
+                                  color: _kMutedInk,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Confira abaixo os dados do tanque ${selectedTankOption()!.label}.',
+                                    style: const TextStyle(
+                                      color: _kMutedInk,
+                                      fontSize: 12.2,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                           const SizedBox(height: 10),
@@ -11314,55 +11685,44 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                           ),
                         ],
                         const SizedBox(height: 12),
-                        if (tankMode != _TankMode.none) ...<Widget>[
+                        if (availableSelectionTanks.length > 1) ...<Widget>[
                           SizedBox(
                             width: double.infinity,
                             child: OutlinedButton.icon(
-                              onPressed:
-                                  tankMode == _TankMode.create &&
-                                      tankCreationLocked
-                                  ? null
-                                  : () {
-                                      if (tankMode == _TankMode.create &&
-                                          isTankCreationLocked()) {
-                                        setModalState(() {
-                                          error = tankLimitReachedMessage();
-                                        });
-                                        return;
-                                      }
-                                      final tankDraft = resolveCurrentTankDraft(
-                                        setModalState,
-                                        requireTank: true,
-                                      );
-                                      if (tankDraft == null ||
-                                          tankDraft.mode == _TankMode.none) {
-                                        return;
-                                      }
+                              onPressed: () {
+                                final tankDraft = resolveCurrentTankDraft(
+                                  setModalState,
+                                  requireTank: true,
+                                );
+                                if (tankDraft == null ||
+                                    tankDraft.mode == _TankMode.none) {
+                                  return;
+                                }
 
-                                      final tankLabel = describeTankDraft(
-                                        tankDraft,
-                                      );
-                                      setModalState(() {
-                                        stagedTankDrafts.add(tankDraft);
-                                        error = null;
-                                        if (tankMode == _TankMode.existing) {
-                                          selectedTankKey = null;
-                                        }
-                                        clearTankFieldsForNew();
-                                      });
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        SnackBar(
-                                          content: Text(
-                                            tankLabel.trim().isEmpty
+                                final tankLabel = describeTankDraft(tankDraft);
+                                var hasNextTank = false;
+                                setModalState(() {
+                                  stagedTankDrafts.add(tankDraft);
+                                  error = null;
+                                  selectNextAvailableTankOrClear();
+                                  hasNextTank = availableTankSelectionOptions()
+                                      .isNotEmpty;
+                                });
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      tankLabel.trim().isEmpty
+                                          ? hasNextTank
                                                 ? 'Tanque adicionado. Continue preenchendo o próximo tanque.'
-                                                : 'Tanque $tankLabel adicionado. Continue preenchendo o próximo tanque.',
-                                          ),
-                                        ),
-                                      );
-                                      scrollToTankSection();
-                                    },
+                                                : 'Último tanque adicionado. Agora finalize o RDO.'
+                                          : hasNextTank
+                                          ? 'Tanque $tankLabel adicionado. Continue preenchendo o próximo tanque.'
+                                          : 'Tanque $tankLabel adicionado. Agora finalize o RDO.',
+                                    ),
+                                  ),
+                                );
+                                scrollToTankSection();
+                              },
                               icon: const Icon(
                                 Icons.add_circle_outline_rounded,
                               ),
@@ -11395,13 +11755,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                     return;
                                   }
 
-                                  final requireCurrentTank =
-                                      tankMode != _TankMode.none &&
-                                      stagedTankDrafts.isEmpty;
                                   final currentTankDraft =
                                       resolveCurrentTankDraft(
                                         setModalState,
-                                        requireTank: requireCurrentTank,
+                                        requireTank: false,
                                       );
                                   if (currentTankDraft == null) {
                                     return;
