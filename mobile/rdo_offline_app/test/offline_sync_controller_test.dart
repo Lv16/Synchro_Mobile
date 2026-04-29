@@ -290,4 +290,101 @@ void main() {
       expect(controller.errorCount, 0);
     },
   );
+
+  test(
+    'repara dependencia legada de tanque manual do supervisor e libera update do RDO',
+    () async {
+      final repository = InMemoryOfflineRdoRepository();
+      final now = DateTime(2026, 4, 27);
+
+      await repository.upsert(
+        PendingSyncItem(
+          clientUuid: 'create-uuid-6327-3',
+          operation: 'rdo.create',
+          osNumber: '6327',
+          rdoSequence: 3,
+          businessDate: now,
+          payload: const <String, dynamic>{
+            '__entity_alias': 'rdo_os257_seq3_1777405489000',
+            'ordem_servico_id': '257',
+            'rdo_contagem': '3',
+          },
+          state: SyncState.synced,
+        ),
+      );
+
+      await repository.upsert(
+        PendingSyncItem(
+          clientUuid: 'tank-uuid-6327-3',
+          operation: 'rdo.tank.add',
+          osNumber: '6327',
+          rdoSequence: 3,
+          businessDate: now,
+          payload: const <String, dynamic>{
+            '__entity_alias': 'tank_257_3_1777405489160527_0',
+            '__depends_on': <String>['rdo_os257_seq3_1777405489000'],
+            'rdo_id': '@local:rdo_os257_seq3_1777405489000',
+            'tanque_codigo': 'Hold B.T1 C',
+            'tanque_nome': 'Hold B.T1 C',
+            'nome_tanque': 'Hold B.T1 C',
+            'servico_exec': 'LIMPEZA DE TANQUE DE LASTRO',
+            'metodo_exec': 'Manual',
+          },
+          state: SyncState.error,
+          lastError:
+              'Selecione um tanque configurado para a OS. O supervisor não pode criar tanque manualmente.',
+        ),
+      );
+
+      await repository.upsert(
+        PendingSyncItem(
+          clientUuid: 'update-uuid-6327-3',
+          operation: 'rdo.update',
+          osNumber: '6327',
+          rdoSequence: 3,
+          businessDate: now,
+          payload: const <String, dynamic>{
+            'rdo_id': '@local:rdo_os257_seq3_1777405489000',
+            '__depends_on': <String>[
+              'rdo_os257_seq3_1777405489000',
+              'tank_257_3_1777405489160527_0',
+            ],
+            'tank_id': '@local:tank_257_3_1777405489160527_0',
+            'observacoes': 'RDO preso no aparelho',
+          },
+          state: SyncState.conflict,
+          lastError: 'dependências com falha: tank_257_3_1777405489160527_0',
+        ),
+      );
+
+      final gateway = _RecordingBatchGateway();
+      final controller = OfflineSyncController(repository, gateway);
+
+      await controller.syncQueuedItems();
+
+      final executedByUuid = <String, PendingSyncItem>{
+        for (final item in gateway.lastBatchItems) item.clientUuid: item,
+      };
+      expect(executedByUuid.containsKey('tank-uuid-6327-3'), isFalse);
+      expect(executedByUuid.containsKey('create-uuid-6327-3'), isTrue);
+      expect(executedByUuid.containsKey('update-uuid-6327-3'), isTrue);
+
+      final repairedUpdate = executedByUuid['update-uuid-6327-3']!;
+      final dependsOn = (repairedUpdate.payload['__depends_on'] as List)
+          .map((item) => item.toString())
+          .toList(growable: false);
+      expect(dependsOn, isNot(contains('tank_257_3_1777405489160527_0')));
+      expect(repairedUpdate.payload.containsKey('tank_id'), isFalse);
+      expect(repairedUpdate.payload['tanque_codigo'], 'Hold B.T1 C');
+      expect(repairedUpdate.payload['nome_tanque'], 'Hold B.T1 C');
+      expect(
+        repairedUpdate.payload['__legacy_tank_dependency_repaired'],
+        isTrue,
+      );
+
+      final queue = await repository.listQueue();
+      expect(queue, isEmpty);
+      expect(controller.message, contains('sincronizado'));
+    },
+  );
 }
