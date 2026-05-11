@@ -403,6 +403,7 @@ class HomePage extends StatefulWidget {
     this.appUpdateGateway,
     this.mobileRdoPageBaseUrl,
     this.mobileOsRdosBaseUrl,
+    this.mobileRdoPdfBaseUrl,
     this.mobileApiAccessToken,
     this.supervisorLabel,
     this.sessionExpiresAt,
@@ -418,6 +419,7 @@ class HomePage extends StatefulWidget {
   final AppUpdateGateway? appUpdateGateway;
   final Uri? mobileRdoPageBaseUrl;
   final Uri? mobileOsRdosBaseUrl;
+  final Uri? mobileRdoPdfBaseUrl;
   final String? mobileApiAccessToken;
   final String? supervisorLabel;
   final DateTime? sessionExpiresAt;
@@ -2200,20 +2202,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     );
   }
 
-  Uri? _buildMobileRdoPageUri(int rdoId) {
-    final base = widget.mobileRdoPageBaseUrl;
-    if (base == null || rdoId <= 0) {
-      return null;
-    }
-    final basePath = base.path.endsWith('/') ? base.path : '${base.path}/';
-    final query = <String, String>{...base.queryParameters, 'auto_export': '1'};
-    final token = _mobileAccessToken();
-    if (token.isNotEmpty) {
-      query['access_token'] = token;
-    }
-    return base.replace(path: '$basePath$rdoId/page/', queryParameters: query);
-  }
-
   Uri? _buildMobileRdoEditUri(int rdoId) {
     final base = widget.mobileRdoPageBaseUrl;
     if (base == null || rdoId <= 0) {
@@ -2221,6 +2209,39 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
     final basePath = base.path.endsWith('/') ? base.path : '${base.path}/';
     return base.replace(path: '$basePath$rdoId/edit/');
+  }
+
+  Uri? _buildMobileRdoPdfUri(List<_ServerRdoOption> selectedOptions) {
+    final base = widget.mobileRdoPdfBaseUrl;
+    if (base == null || selectedOptions.isEmpty) {
+      return null;
+    }
+    final basePath = base.path.endsWith('/') ? base.path : '${base.path}/';
+    final queryPairs = <String>[];
+    for (final entry in base.queryParametersAll.entries) {
+      for (final value in entry.value) {
+        queryPairs.add(
+          '${Uri.encodeQueryComponent(entry.key)}=${Uri.encodeQueryComponent(value)}',
+        );
+      }
+    }
+    for (final option in selectedOptions) {
+      if (option.id <= 0) {
+        continue;
+      }
+      queryPairs.add('rdo_id=${Uri.encodeQueryComponent('${option.id}')}');
+    }
+    final token = _mobileAccessToken();
+    if (token.isNotEmpty) {
+      queryPairs.add('access_token=${Uri.encodeQueryComponent(token)}');
+    }
+    queryPairs.add(
+      'ts=${Uri.encodeQueryComponent(DateTime.now().millisecondsSinceEpoch.toString())}',
+    );
+    return base.replace(
+      path: basePath,
+      query: queryPairs.isEmpty ? null : queryPairs.join('&'),
+    );
   }
 
   List<_TeamMemberDraft> _parseServerTeamMembers(dynamic rawTeam) {
@@ -3695,7 +3716,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       if (!mounted || selectedOptions == null || selectedOptions.isEmpty) {
         return;
       }
-      await _openOnlinePdfExport(selectedOptions);
+      await _openOnlinePdfExport(assigned, selectedOptions);
       return;
     }
 
@@ -3761,58 +3782,57 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   bool _isOnlinePdfExportConfigured() {
-    return widget.mobileRdoPageBaseUrl != null &&
-        widget.mobileOsRdosBaseUrl != null &&
+    return widget.mobileRdoPdfBaseUrl != null &&
         _mobileAccessToken().isNotEmpty;
   }
 
   Future<void> _openOnlinePdfExport(
+    AssignedOsItem assigned,
     List<_ServerRdoOption> selectedOptions,
   ) async {
-    var openedCount = 0;
-    for (var index = 0; index < selectedOptions.length; index++) {
-      final option = selectedOptions[index];
-      final uri = _buildMobileRdoPageUri(option.id);
-      if (uri == null) {
-        continue;
+    final uri = _buildMobileRdoPdfUri(selectedOptions);
+    if (uri == null) {
+      if (!mounted) {
+        return;
       }
-      final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
-      if (opened) {
-        openedCount += 1;
-      }
-      if (index < selectedOptions.length - 1) {
-        await Future<void>.delayed(const Duration(milliseconds: 420));
-      }
-    }
-
-    if (!mounted) {
-      return;
-    }
-    if (openedCount <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Não foi possível abrir a exportação PDF.'),
+          content: Text('Exportação PDF indisponível no momento.'),
         ),
       );
       return;
     }
-    if (openedCount < selectedOptions.length) {
+
+    try {
+      final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!mounted) {
+        return;
+      }
+      if (!opened) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Não foi possível abrir a exportação PDF.'),
+          ),
+        );
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Exportação parcial: $openedCount de ${selectedOptions.length} RDO(s) enviados para PDF.',
+            'Abrindo exportação de PDF único para ${selectedOptions.length} RDO(s)...',
           ),
         ),
       );
-      return;
-    }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Abrindo exportação de ${selectedOptions.length} RDO(s) em PDF...',
+    } catch (err) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Não foi possível abrir o exportador PDF: $err'),
         ),
-      ),
-    );
+      );
+    }
   }
 
   DateTime _queueItemMoment(PendingSyncItem item) {
@@ -9469,10 +9489,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                                   ).showSnackBar(
                                                     SnackBar(
                                                       content: Text(feedback),
-                                                      duration:
-                                                          const Duration(
-                                                            seconds: 2,
-                                                          ),
+                                                      duration: const Duration(
+                                                        seconds: 2,
+                                                      ),
                                                     ),
                                                   );
                                                 },

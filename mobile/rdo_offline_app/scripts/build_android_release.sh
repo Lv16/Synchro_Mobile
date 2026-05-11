@@ -159,6 +159,10 @@ if [[ -n "${RDO_MOBILE_OS_RDOS_URL:-}" ]]; then
   common_args+=("--dart-define=RDO_MOBILE_OS_RDOS_URL=$RDO_MOBILE_OS_RDOS_URL")
 fi
 
+if [[ -n "${RDO_MOBILE_RDO_PDF_URL:-}" ]]; then
+  common_args+=("--dart-define=RDO_MOBILE_RDO_PDF_URL=$RDO_MOBILE_RDO_PDF_URL")
+fi
+
 if [[ "${RDO_HOMOLOG_MODE:-false}" == "true" ]]; then
   common_args+=("--dart-define=RDO_HOMOLOG_MODE=true")
 fi

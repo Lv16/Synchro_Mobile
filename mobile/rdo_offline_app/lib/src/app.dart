@@ -78,6 +78,10 @@ class RdoOfflineApp extends StatefulWidget {
     'RDO_MOBILE_OS_RDOS_URL',
     defaultValue: '',
   );
+  static const String _mobileRdoPdfUrlEnv = String.fromEnvironment(
+    'RDO_MOBILE_RDO_PDF_URL',
+    defaultValue: '',
+  );
   static const String _deviceNameEnv = String.fromEnvironment(
     'RDO_DEVICE_NAME',
     defaultValue: '',
@@ -110,6 +114,7 @@ class _RdoOfflineAppState extends State<RdoOfflineApp> {
   late final AuthSessionController _authController;
   Uri? _mobileRdoPageBaseUrl;
   Uri? _mobileOsRdosBaseUrl;
+  Uri? _mobileRdoPdfBaseUrl;
 
   bool _initialized = false;
   bool _remoteMode = false;
@@ -145,6 +150,9 @@ class _RdoOfflineAppState extends State<RdoOfflineApp> {
       _mobileOsRdosBaseUrl = _parseOptionalUri(
         RdoOfflineApp._mobileOsRdosUrlEnv,
       );
+      _mobileRdoPdfBaseUrl = _parseOptionalUri(
+        RdoOfflineApp._mobileRdoPdfUrlEnv,
+      );
       _authController = AuthSessionController.disabled();
       _initialized = true;
       return;
@@ -161,6 +169,9 @@ class _RdoOfflineAppState extends State<RdoOfflineApp> {
       );
       _mobileOsRdosBaseUrl = _parseOptionalUri(
         RdoOfflineApp._mobileOsRdosUrlEnv,
+      );
+      _mobileRdoPdfBaseUrl = _parseOptionalUri(
+        RdoOfflineApp._mobileRdoPdfUrlEnv,
       );
       _authController = AuthSessionController.disabled();
       _startupError =
@@ -243,6 +254,7 @@ class _RdoOfflineAppState extends State<RdoOfflineApp> {
 
     _mobileRdoPageBaseUrl = _resolveMobileRdoPageBaseUrl(syncUrl);
     _mobileOsRdosBaseUrl = _resolveMobileOsRdosBaseUrl(syncUrl);
+    _mobileRdoPdfBaseUrl = _resolveMobileRdoPdfBaseUrl(syncUrl);
 
     _bootstrapAuth(authTokenUrl);
   }
@@ -355,6 +367,7 @@ class _RdoOfflineAppState extends State<RdoOfflineApp> {
           appUpdateGateway: _appUpdateGateway,
           mobileRdoPageBaseUrl: _mobileRdoPageBaseUrl,
           mobileOsRdosBaseUrl: _mobileOsRdosBaseUrl,
+          mobileRdoPdfBaseUrl: _mobileRdoPdfBaseUrl,
           mobileApiAccessToken: _authController.accessToken,
           supervisorLabel: _authController.username ?? 'Supervisor',
           sessionExpiresAt: _authController.expiresAt,
@@ -425,6 +438,14 @@ class _RdoOfflineAppState extends State<RdoOfflineApp> {
       return configured;
     }
     return _deriveFromSync(syncUrl, '/os/');
+  }
+
+  Uri? _resolveMobileRdoPdfBaseUrl(Uri syncUrl) {
+    final configured = _parseOptionalUri(RdoOfflineApp._mobileRdoPdfUrlEnv);
+    if (configured != null) {
+      return configured;
+    }
+    return _deriveFromSync(syncUrl, '/rdo/pdf/');
   }
 
   Uri? _resolvePhotoUploadUrl(Uri syncUrl) {
